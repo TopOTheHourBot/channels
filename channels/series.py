@@ -8,7 +8,7 @@ __all__ = [
 import asyncio
 from asyncio import TimeoutError as AsyncTimeoutError
 from collections.abc import AsyncIterable, AsyncIterator, Callable
-from typing import Optional, ParamSpec, TypeVar, TypeVarTuple, overload
+from typing import Optional, ParamSpec, TypeVar, TypeVarTuple, overload, final
 
 Ts = TypeVarTuple("Ts")
 
@@ -46,6 +46,7 @@ def series(func: Callable[P, AsyncIterable[T]], /) -> Callable[P, Series[T]]:
     return series_wrapper
 
 
+@final
 class Series(AsyncIterator[T_co]):
     """A wrapper type for asynchronous iterators that adds common iterable
     operations and waiting utilities
