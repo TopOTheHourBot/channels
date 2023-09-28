@@ -1,2 +1,2 @@
-from .channels import *
+from .core import *
 from .protocols import *
