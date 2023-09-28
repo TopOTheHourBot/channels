@@ -12,6 +12,7 @@ T = TypeVar("T")
 
 
 class Channel(SupportsRecvAndSend[T, T], Generic[T]):
+    """A basic send-and-receive channel with optional buffering"""
 
     __slots__ = ("_values")
     _values: Deque[T]
