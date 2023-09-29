@@ -37,13 +37,11 @@ class Channel(SupportsRecvAndSend[T, T], Generic[T]):
         return not self._values
 
     async def send(self, value: T, /) -> None:
-        values = self._values
         while self.full():
             await asyncio.sleep(0)
-        values.append(value)
+        self._values.append(value)
 
     async def recv(self) -> T:
-        values = self._values
         while self.empty():
             await asyncio.sleep(0)
-        return values.popleft()
+        return self._values.popleft()
