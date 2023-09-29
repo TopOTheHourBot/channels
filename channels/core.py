@@ -34,7 +34,7 @@ class Channel(SupportsRecvAndSend[T, T], Generic[T]):
 
     def empty(self) -> bool:
         """Return true if the channel has no values, otherwise false"""
-        return not self._values
+        return len(self) == 0
 
     async def send(self, value: T, /) -> None:
         while self.full():
