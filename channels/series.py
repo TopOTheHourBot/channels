@@ -6,9 +6,10 @@ __all__ = [
 ]
 
 import asyncio
+from asyncio import Task
 from asyncio import TimeoutError as AsyncTimeoutError
 from collections.abc import AsyncIterable, AsyncIterator, Callable
-from typing import Optional, ParamSpec, TypeVar, TypeVarTuple, overload, final
+from typing import Optional, ParamSpec, TypeVar, TypeVarTuple, final, overload
 
 Ts = TypeVarTuple("Ts")
 
@@ -176,6 +177,48 @@ class Series(AsyncIterator[T_co]):
                 yield tuple(await asyncio.gather(*map(anext, its)))
         except StopAsyncIteration:
             return
+
+    @overload
+    def merge(self: Series[T1]) -> Series[T1]: ...
+    @overload
+    def merge(self: Series[T1], other2: AsyncIterable[T2], /) -> Series[T1 | T2]: ...
+    @overload
+    def merge(self: Series[T1], other2: AsyncIterable[T2], other3: AsyncIterable[T3], /) -> Series[T1 | T2 | T3]: ...
+    @overload
+    def merge(self: Series[T1], other2: AsyncIterable[T2], other3: AsyncIterable[T3], other4: AsyncIterable[T4], /) -> Series[T1 | T2 | T3 | T4]: ...
+    @overload
+    def merge(self: Series[T1], other2: AsyncIterable[T2], other3: AsyncIterable[T3], other4: AsyncIterable[T4], other5: AsyncIterable[T5], /) -> Series[T1 | T2 | T3 | T4 | T5]: ...
+    @overload
+    def merge(self, *others: AsyncIterable) -> Series: ...
+    @series
+    async def merge(self, *others: AsyncIterable) -> AsyncIterator:
+        """Return a sub-series merged with other asynchronous iterables
+
+        Iteration stops when the longest iterable has been exhausted.
+        """
+        its = {
+            str(name): aiter(it)
+            for name, it in enumerate((self, *others))
+        }
+
+        todo = set[Task]()
+        for name, it in its.items():
+            task = asyncio.create_task(anext(it), name=name)
+            todo.add(task)
+
+        while todo:
+            done, todo = await asyncio.wait(todo, return_when=asyncio.FIRST_COMPLETED)
+            for task in done:
+                try:
+                    result = task.result()
+                except StopAsyncIteration:
+                    continue
+                else:
+                    name = task.get_name()
+                    it = its[name]
+                    task = asyncio.create_task(anext(it), name=name)
+                    todo.add(task)
+                    yield result
 
     @series
     async def star_map(self: Series[tuple[*Ts]], mapper: Callable[[*Ts], S]) -> AsyncIterator[S]:
