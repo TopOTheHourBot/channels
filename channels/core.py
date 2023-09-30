@@ -24,17 +24,21 @@ class Channel(SupportsRecvAndSend[T, T], Generic[T]):
         return len(self._values)
 
     @property
+    def size(self) -> int:
+        return len(self)
+
+    @property
     def capacity(self) -> Optional[int]:
         """The channel's maximum possible size"""
         return self._values.maxlen
 
     def full(self) -> bool:
         """Return true if the channel has reached its capacity, otherwise false"""
-        return len(self) == self.capacity
+        return self.size == self.capacity
 
     def empty(self) -> bool:
         """Return true if the channel has no values, otherwise false"""
-        return len(self) == 0
+        return self.size == 0
 
     async def send(self, value: T, /) -> None:
         while self.full():
