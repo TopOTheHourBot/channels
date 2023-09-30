@@ -11,7 +11,11 @@ from asyncio import TimeoutError as AsyncTimeoutError
 from collections.abc import AsyncIterable, AsyncIterator, Callable
 from typing import Optional, ParamSpec, TypeVar, TypeVarTuple, final, overload
 
-Ts = TypeVarTuple("Ts")
+T = TypeVar("T")
+S = TypeVar("S")
+
+T_co = TypeVar("T_co", covariant=True)
+S_co = TypeVar("S_co", covariant=True)
 
 T1 = TypeVar("T1")
 T2 = TypeVar("T2")
@@ -19,11 +23,7 @@ T3 = TypeVar("T3")
 T4 = TypeVar("T4")
 T5 = TypeVar("T5")
 
-T = TypeVar("T")
-S = TypeVar("S")
-
-T_co = TypeVar("T_co", covariant=True)
-S_co = TypeVar("S_co", covariant=True)
+Ts = TypeVarTuple("Ts")
 
 P = ParamSpec("P")
 
@@ -177,6 +177,12 @@ class Series(AsyncIterator[T_co]):
                 yield tuple(await asyncio.gather(*map(anext, its)))
         except StopAsyncIteration:
             return
+
+    @series
+    async def broadcast(self, *others: *Ts) -> AsyncIterator[tuple[T_co, *Ts]]:
+        """Return a sub-series of the values zipped with repeated objects"""
+        async for value in self:
+            yield (value, *others)
 
     @overload
     def merge(self: Series[T1]) -> Series[T1]: ...
