@@ -6,6 +6,7 @@ __all__ = [
 ]
 
 import asyncio
+import time
 from asyncio import Task
 from asyncio import TimeoutError as AsyncTimeoutError
 from collections.abc import AsyncIterable, AsyncIterator, Callable
@@ -71,7 +72,13 @@ class Series(AsyncIterator[T_co]):
         If ``instant_first`` is true, the first value is yielded without extra
         delay applied to the underlying iterator.
         """
-        if instant_first:
+        loop  = asyncio.get_event_loop()
+        delay = max(0, delay)
+        prev_yield_time = 0
+        if not instant_first:
+            curr_yield_time = loop.time()
+            prev_yield_time = curr_yield_time + delay
+            await asyncio.sleep(delay)
             try:
                 value = await anext(self)
             except StopAsyncIteration:
@@ -79,7 +86,10 @@ class Series(AsyncIterator[T_co]):
             else:
                 yield value
         async for value in self:
-            await asyncio.sleep(delay)
+            curr_yield_time = loop.time()
+            leftover_delay  = max(0, delay - (curr_yield_time - prev_yield_time))
+            prev_yield_time = curr_yield_time + leftover_delay
+            await asyncio.sleep(leftover_delay)
             yield value
 
     @series
