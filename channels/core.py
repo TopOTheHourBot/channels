@@ -4,7 +4,7 @@ __all__ = ["Channel"]
 
 import asyncio
 from collections import deque as Deque
-from typing import Generic, TypeVar, Optional
+from typing import Generic, Optional, TypeVar
 
 from .protocols import SupportsRecvAndSend
 
@@ -34,11 +34,11 @@ class Channel(SupportsRecvAndSend[T, T], Generic[T]):
 
     def full(self) -> bool:
         """Return true if the channel has reached its capacity, otherwise false"""
-        return self.size == self.capacity
+        return len(self) == self.capacity
 
     def empty(self) -> bool:
         """Return true if the channel has no values, otherwise false"""
-        return self.size == 0
+        return len(self) == 0
 
     async def send(self, value: T, /) -> None:
         while self.full():
