@@ -64,31 +64,18 @@ class Series(AsyncIterator[T_co]):
         return value
 
     @series
-    async def stagger(self, delay: float, *, instant_first: bool = True) -> AsyncIterator[T_co]:
+    async def stagger(self, delay: float) -> AsyncIterator[T_co]:
         """Return a sub-series whose yields are staggered by at least ``delay``
         seconds
-
-        If ``instant_first`` is true, the first value is yielded without extra
-        delay applied to the underlying iterator.
         """
         delay = max(0, delay)
-        loop  = asyncio.get_event_loop()
-        prev_yield_time = 0
-        if not instant_first:
-            curr_yield_time = loop.time()
-            prev_yield_time = curr_yield_time + delay
-            await asyncio.sleep(delay)
-            try:
-                value = await anext(self)
-            except StopAsyncIteration:
-                return
-            else:
-                yield value
+        loop = asyncio.get_event_loop()
+        yield_time = 0
         async for value in self:
-            curr_yield_time = loop.time()
-            leftover_delay  = max(0, delay - (curr_yield_time - prev_yield_time))
-            prev_yield_time = curr_yield_time + leftover_delay
-            await asyncio.sleep(leftover_delay)
+            current_time = loop.time()
+            sleep_time = max(0, delay - (current_time - yield_time))
+            yield_time = current_time + sleep_time
+            await asyncio.sleep(sleep_time)
             yield value
 
     @series
