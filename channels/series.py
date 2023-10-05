@@ -94,7 +94,8 @@ class Series(AsyncIterator[T_co]):
             current_time = loop.time()
             sleep_time = max(0, delay - (current_time - yield_time))
             yield_time = current_time + sleep_time
-            await asyncio.sleep(sleep_time)
+            if sleep_time:
+                await asyncio.sleep(sleep_time)
             yield value
 
     @series
