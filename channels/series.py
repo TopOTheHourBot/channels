@@ -64,13 +64,29 @@ class Series(AsyncIterator[T_co]):
         return value
 
     @series
-    async def stagger(self, delay: float) -> AsyncIterator[T_co]:
+    async def stagger(self, delay: float, *, first: bool = False) -> AsyncIterator[T_co]:
         """Return a sub-series whose yields are staggered by at least ``delay``
         seconds
+
+        Staggers before the first retrieval if ``first`` is true.
         """
         delay = max(0, delay)
-        loop = asyncio.get_event_loop()
-        yield_time = 0
+        loop  = asyncio.get_event_loop()
+
+        if first:
+            await asyncio.sleep(delay)
+
+        # We peel-off the first iteration to set yield_time. While unlikely,
+        # it's possible for delay to be larger than loop.time(), in which case
+        # the calculation for sleep_time will be incorrect.
+        try:
+            value = await anext(self)
+        except StopAsyncIteration:
+            return
+        else:
+            yield_time = loop.time()
+            yield value
+
         async for value in self:
             current_time = loop.time()
             sleep_time = max(0, delay - (current_time - yield_time))
@@ -79,15 +95,14 @@ class Series(AsyncIterator[T_co]):
             yield value
 
     @series
-    async def timeout(self, delay: float, *, infinite_first: bool = True) -> AsyncIterator[T_co]:
+    async def timeout(self, delay: float, *, first: bool = False) -> AsyncIterator[T_co]:
         """Return a sub-series whose value retrievals are time restricted by
         ``delay`` seconds
 
-        If ``infinite_first`` is true, the first retrieval is awaited for
-        infinite time.
+        Timeout is applied to the first retrieval if ``first`` is true.
         """
         try:
-            if infinite_first:
+            if not first:
                 yield await anext(self)
             while True:
                 yield await asyncio.wait_for(anext(self), delay)
