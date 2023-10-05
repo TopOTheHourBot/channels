@@ -73,12 +73,15 @@ class Series(AsyncIterator[T_co]):
         delay = max(0, delay)
         loop  = asyncio.get_event_loop()
 
+        # We have no reference point for which to "stagger from", so this is
+        # just a direct call to sleep().
         if first:
             await asyncio.sleep(delay)
 
         # We peel-off the first iteration to set yield_time. While unlikely,
         # it's possible for delay to be larger than loop.time(), in which case
-        # the calculation for sleep_time will be incorrect.
+        # the calculation for sleep_time will be incorrect if yield_time was
+        # just set to something like 0.
         try:
             value = await anext(self)
         except StopAsyncIteration:
