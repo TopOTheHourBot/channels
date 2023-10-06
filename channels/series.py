@@ -76,7 +76,14 @@ class Series(AsyncIterator[T_co]):
         if first:
             await asyncio.sleep(delay)
 
-        yield_time = 0
+        try:
+            value = await anext(self)
+        except StopAsyncIteration:
+            return
+        else:
+            yield_time = loop.time()
+            yield value
+
         async for value in self:
             current_time = loop.time()
             sleep_time = max(0, delay - (current_time - yield_time))
