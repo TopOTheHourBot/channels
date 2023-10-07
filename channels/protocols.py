@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 __all__ = [
-    "RecvError",
-    "SendError",
+    "StopRecv",
+    "StopSend",
     "SupportsRecv",
     "SupportsSend",
     "SupportsRecvAndSend",
@@ -18,13 +18,13 @@ T_co = TypeVar("T_co", covariant=True)
 T_contra = TypeVar("T_contra", contravariant=True)
 
 
-class RecvError(Exception):
+class StopRecv(Exception):
     """Values can no longer be received"""
 
     __slots__ = ()
 
 
-class SendError(Exception):
+class StopSend(Exception):
     """Values can no longer be sent"""
 
     __slots__ = ()
@@ -37,7 +37,7 @@ class SupportsRecv(Protocol[T_co]):
     async def recv(self) -> T_co:
         """Receive a value, waiting for one to become available
 
-        This method can raise ``RecvError`` to signal that no further values
+        This method can raise ``StopRecv`` to signal that no further values
         can be received.
         """
         raise NotImplementedError
@@ -45,12 +45,12 @@ class SupportsRecv(Protocol[T_co]):
     @series
     async def recv_each(self) -> AsyncIterator[T_co]:
         """Return an async iterator that continuously receives values until
-        ``RecvError``
+        ``StopRecv``
         """
         try:
             while True:
                 yield await self.recv()
-        except RecvError:
+        except StopRecv:
             return
 
 
@@ -61,19 +61,19 @@ class SupportsSend(Protocol[T_contra]):
     async def send(self, value: T_contra, /) -> object:
         """Send a value, waiting for an appropriate time to do so
 
-        This method can raise ``SendError`` to signal that no further values
+        This method can raise ``StopSend`` to signal that no further values
         can be sent.
         """
         raise NotImplementedError
 
     async def send_each(self, values: AsyncIterable[T_contra], /) -> object:
         """Send values from an async iterable until exhaustion, or until
-        ``SendError``
+        ``StopSend``
         """
         try:
             async for value in values:
                 await self.send(value)
-        except SendError:
+        except StopSend:
             return
 
 
