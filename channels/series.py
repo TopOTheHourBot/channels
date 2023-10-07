@@ -9,7 +9,8 @@ import asyncio
 from asyncio import Task
 from asyncio import TimeoutError as AsyncTimeoutError
 from collections.abc import AsyncIterable, AsyncIterator, Callable
-from typing import Optional, ParamSpec, TypeVar, TypeVarTuple, final, overload
+from typing import (Optional, ParamSpec, TypeGuard, TypeVar, TypeVarTuple,
+                    final, overload)
 
 T = TypeVar("T")
 S = TypeVar("S")
@@ -243,6 +244,10 @@ class Series(AsyncIterator[T_co]):
         async for values in self:
             yield mapper(*values)
 
+    @overload
+    def filter(self, predicate: Callable[[T_co], TypeGuard[S]]) -> Series[S]: ...
+    @overload
+    def filter(self, predicate: Callable[[T_co], object]) -> Series[T_co]: ...
     @series
     async def filter(self, predicate: Callable[[T_co], object]) -> AsyncIterator[T_co]:
         """Return a sub-series of the values whose call to ``predicate``
