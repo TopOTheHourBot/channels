@@ -9,12 +9,12 @@ import asyncio
 from collections import deque as Deque
 from typing import Generic, Optional, TypeVar
 
-from .protocols import SupportsRecvAndSend
+from .protocols import SupportsSendAndRecv
 
 T = TypeVar("T")
 
 
-class Channel(SupportsRecvAndSend[T, T], Generic[T]):
+class Channel(SupportsSendAndRecv[T, T], Generic[T]):
     """A basic send-and-receive channel with optional buffering"""
 
     __slots__ = ("_values")

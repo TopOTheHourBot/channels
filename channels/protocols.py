@@ -5,7 +5,7 @@ __all__ = [
     "StopSend",
     "SupportsRecv",
     "SupportsSend",
-    "SupportsRecvAndSend",
+    "SupportsSendAndRecv",
 ]
 
 from abc import abstractmethod
@@ -80,5 +80,5 @@ class SupportsSend(Protocol[T_contra]):
             return
 
 
-class SupportsRecvAndSend(SupportsRecv[T_co], SupportsSend[T_contra], Protocol[T_co, T_contra]):
+class SupportsSendAndRecv(SupportsSend[T_contra], SupportsRecv[T_co], Protocol[T_contra, T_co]):
     """Type supports both sending and receiving operations"""
