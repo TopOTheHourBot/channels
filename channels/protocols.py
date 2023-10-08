@@ -79,6 +79,17 @@ class SupportsSend(Protocol[T_contra]):
         except StopSend:
             return
 
+    async def try_send(self, value: T_contra, /) -> StopSend | object:
+        """Wrapper of ``send()`` that returns captured ``StopSend`` exceptions
+        rather than raising
+        """
+        try:
+            result = await self.send(value)
+        except StopSend as error:
+            return error
+        else:
+            return result
+
 
 class SupportsSendAndRecv(SupportsSend[T_contra], SupportsRecv[T_co], Protocol[T_contra, T_co]):
     """Type supports both sending and receiving operations"""
