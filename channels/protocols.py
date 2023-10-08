@@ -12,7 +12,7 @@ from abc import abstractmethod
 from collections.abc import AsyncIterable, AsyncIterator
 from typing import Protocol, TypeVar
 
-from .series import series
+from .series import Series, series
 
 T_co = TypeVar("T_co", covariant=True)
 T_contra = TypeVar("T_contra", contravariant=True)
@@ -32,6 +32,9 @@ class StopSend(Exception):
 
 class SupportsRecv(Protocol[T_co]):
     """Type supports the ``recv()`` and ``recv_each()`` operations"""
+
+    def __aiter__(self) -> Series[T_co]:
+        return self.recv_each()
 
     @abstractmethod
     async def recv(self) -> T_co:
