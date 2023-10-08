@@ -1,6 +1,9 @@
 from __future__ import annotations
 
-__all__ = ["Channel"]
+__all__ = [
+    "Channel",
+    "LatentChannel",
+]
 
 import asyncio
 from collections import deque as Deque
@@ -25,6 +28,7 @@ class Channel(SupportsRecvAndSend[T, T], Generic[T]):
 
     @property
     def size(self) -> int:
+        """The channel's current size"""
         return len(self)
 
     @property
@@ -49,3 +53,14 @@ class Channel(SupportsRecvAndSend[T, T], Generic[T]):
         while self.empty():
             await asyncio.sleep(0)
         return self._values.popleft()
+
+
+class LatentChannel(Channel[T]):
+    """A type of channel that "drops" the eldest value when sending at buffer
+    capacity
+    """
+
+    __slots__ = ()
+
+    async def send(self, value: T, /) -> None:
+        self._values.append(value)
