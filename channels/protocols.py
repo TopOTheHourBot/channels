@@ -56,6 +56,17 @@ class SupportsRecv(Protocol[T_co]):
         except StopRecv:
             return
 
+    async def try_recv(self) -> StopRecv | T_co:
+        """Wrapper of ``recv()`` that returns captured ``StopRecv`` exceptions
+        rather than raising them
+        """
+        try:
+            value = await self.recv()
+        except StopRecv as error:
+            return error
+        else:
+            return value
+
 
 class SupportsSend(Protocol[T_contra]):
     """Type supports the ``send()`` and ``send_each()`` operations"""
@@ -81,7 +92,7 @@ class SupportsSend(Protocol[T_contra]):
 
     async def try_send(self, value: T_contra, /) -> StopSend | object:
         """Wrapper of ``send()`` that returns captured ``StopSend`` exceptions
-        rather than raising
+        rather than raising them
         """
         try:
             result = await self.send(value)
