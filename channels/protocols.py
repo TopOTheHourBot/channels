@@ -31,7 +31,7 @@ class StopSend(Exception):
 
 
 class SupportsRecv(Protocol[T_co]):
-    """Type supports the ``recv()`` and ``recv_each()`` operations"""
+    """Type supports receiving operations"""
 
     def __aiter__(self) -> Series[T_co]:
         return self.recv_each()
@@ -69,7 +69,7 @@ class SupportsRecv(Protocol[T_co]):
 
 
 class SupportsSend(Protocol[T_contra]):
-    """Type supports the ``send()`` and ``send_each()`` operations"""
+    """Type supports sending operations"""
 
     @abstractmethod
     async def send(self, value: T_contra, /) -> object:
