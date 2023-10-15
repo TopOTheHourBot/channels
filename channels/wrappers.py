@@ -47,7 +47,8 @@ class Limiter[T](SupportsSend[T]):
         and ``step`` is the amount of time to delay before reaching ``stop``
         """
         curr_send_time = asyncio.get_event_loop().time()
-        prev_send_time = self._prev_send_time or curr_send_time
-        delay = max(self._cooldown - (curr_send_time - prev_send_time), 0)
+        prev_send_time = self._prev_send_time
+        cooldown = self._cooldown if prev_send_time else curr_send_time
+        delay = max(cooldown - (curr_send_time - prev_send_time), 0)
         next_send_time = curr_send_time + delay
         return Timespan(curr_send_time, next_send_time, delay)
