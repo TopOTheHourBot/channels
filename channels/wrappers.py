@@ -7,6 +7,7 @@ __all__ = [
 ]
 
 import asyncio
+from collections.abc import Coroutine
 from typing import Any, NamedTuple
 
 from .protocols import SupportsRecv, SupportsSend
@@ -27,8 +28,8 @@ class SendOnly[T](SupportsSend[T]):
     def __init__(self, channel: SupportsSend[T]) -> None:
         self._channel = channel
 
-    async def send(self, value: T, /) -> Any:
-        return await self._channel.send(value)
+    def send(self, value: T, /) -> Coroutine[Any, Any, Any]:
+        return self._channel.send(value)
 
 
 class RecvOnly[T](SupportsRecv[T]):
@@ -39,8 +40,8 @@ class RecvOnly[T](SupportsRecv[T]):
     def __init__(self, channel: SupportsRecv[T]) -> None:
         self._channel = channel
 
-    async def recv(self) -> T:
-        return await self._channel.recv()
+    def recv(self) -> Coroutine[Any, Any, T]:
+        return self._channel.recv()
 
 
 class SendOnlyLimiter[T](SendOnly[T]):
