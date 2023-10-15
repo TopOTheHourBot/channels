@@ -1,11 +1,15 @@
 from __future__ import annotations
 
-__all__ = ["Limiter"]
+__all__ = [
+    "SendOnly",
+    "RecvOnly",
+    "SendOnlyLimiter",
+]
 
 import asyncio
-from typing import NamedTuple
+from typing import Any, NamedTuple
 
-from .protocols import SupportsSend
+from .protocols import SupportsRecv, SupportsSend
 
 
 class Timespan(NamedTuple):
@@ -15,15 +19,38 @@ class Timespan(NamedTuple):
     step: float
 
 
-class Limiter[T](SupportsSend[T]):
+class SendOnly[T](SupportsSend[T]):
 
-    __slots__ = ("_channel", "_prev_send_time", "_cooldown")
+    __slots__ = ("_channel")
     _channel: SupportsSend[T]
+
+    def __init__(self, channel: SupportsSend[T]) -> None:
+        self._channel = channel
+
+    async def send(self, value: T, /) -> Any:
+        return await self._channel.send(value)
+
+
+class RecvOnly[T](SupportsRecv[T]):
+
+    __slots__ = ("_channel")
+    _channel: SupportsRecv[T]
+
+    def __init__(self, channel: SupportsRecv[T]) -> None:
+        self._channel = channel
+
+    async def recv(self) -> T:
+        return await self._channel.recv()
+
+
+class SendOnlyLimiter[T](SendOnly[T]):
+
+    __slots__ = ("_prev_send_time", "_cooldown")
     _prev_send_time: float
     _cooldown: float
 
     def __init__(self, channel: SupportsSend[T], *, cooldown: float = 0) -> None:
-        self._channel = channel
+        super().__init__(channel)
         self._prev_send_time = 0
         self.cooldown = cooldown
 
@@ -35,11 +62,11 @@ class Limiter[T](SupportsSend[T]):
     def cooldown(self, value: float) -> None:
         self._cooldown = max(value, 0)
 
-    async def send(self, value: T, /) -> None:
+    async def send(self, value: T, /) -> Any:
         _, next_send_time, delay = self.wait_span()
         self._prev_send_time = next_send_time
         await asyncio.sleep(delay)
-        await self._channel.send(value)
+        return await super().send(value)
 
     def wait_span(self) -> Timespan:
         """Return a ``(start, stop, step)`` tuple, where ``start`` is the
