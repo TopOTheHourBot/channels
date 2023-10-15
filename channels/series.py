@@ -9,32 +9,15 @@ import asyncio
 from asyncio import Task
 from asyncio import TimeoutError as AsyncTimeoutError
 from collections.abc import AsyncIterable, AsyncIterator, Callable
-from typing import (Optional, ParamSpec, TypeGuard, TypeVar, TypeVarTuple,
-                    final, overload)
-
-T = TypeVar("T")
-S = TypeVar("S")
-
-T_co = TypeVar("T_co", covariant=True)
-S_co = TypeVar("S_co", covariant=True)
-
-T1 = TypeVar("T1")
-T2 = TypeVar("T2")
-T3 = TypeVar("T3")
-T4 = TypeVar("T4")
-T5 = TypeVar("T5")
-
-Ts = TypeVarTuple("Ts")
-
-P = ParamSpec("P")
+from typing import Optional, TypeGuard, final, overload
 
 
-def identity(value: T, /) -> T:
+def identity[T](value: T, /) -> T:
     """Return ``value``"""
     return value
 
 
-def series(func: Callable[P, AsyncIterable[T]], /) -> Callable[P, Series[T]]:
+def series[**P, T](func: Callable[P, AsyncIterable[T]], /) -> Callable[P, Series[T]]:
     """Convert a function's return type from an ``AsyncIterable[T]`` to
     ``Series[T]``
     """
@@ -49,23 +32,23 @@ def series(func: Callable[P, AsyncIterable[T]], /) -> Callable[P, Series[T]]:
 
 
 @final
-class Series(AsyncIterator[T_co]):
+class Series[T](AsyncIterator[T]):
     """A wrapper type for asynchronous iterators that adds common iterable
     operations and waiting utilities
     """
 
     __slots__ = ("_values")
-    _values: AsyncIterator[T_co]
+    _values: AsyncIterator[T]
 
-    def __init__(self, values: AsyncIterable[T_co], /) -> None:
+    def __init__(self, values: AsyncIterable[T], /) -> None:
         self._values = aiter(values)
 
-    async def __anext__(self) -> T_co:
+    async def __anext__(self) -> T:
         value = await anext(self._values)
         return value
 
     @series
-    async def stagger(self, delay: float, *, first: bool = False) -> AsyncIterator[T_co]:
+    async def stagger(self, delay: float, *, first: bool = False) -> AsyncIterator[T]:
         """Return a sub-series whose yields are staggered by at least ``delay``
         seconds
 
@@ -94,7 +77,7 @@ class Series(AsyncIterator[T_co]):
             yield value
 
     @series
-    async def timeout(self, delay: float, *, first: bool = False) -> AsyncIterator[T_co]:
+    async def timeout(self, delay: float, *, first: bool = False) -> AsyncIterator[T]:
         """Return a sub-series whose value retrievals are time restricted by
         ``delay`` seconds
 
@@ -109,7 +92,7 @@ class Series(AsyncIterator[T_co]):
             return
 
     @series
-    async def global_unique(self, key: Callable[[T_co], object] = identity) -> AsyncIterator[T_co]:
+    async def global_unique(self, key: Callable[[T], object] = identity) -> AsyncIterator[T]:
         """Return a sub-series of the values whose call to ``key`` is unique
         among all encountered values
         """
@@ -121,7 +104,7 @@ class Series(AsyncIterator[T_co]):
                 yield value
 
     @series
-    async def local_unique(self, key: Callable[[T_co], object] = identity) -> AsyncIterator[T_co]:
+    async def local_unique(self, key: Callable[[T], object] = identity) -> AsyncIterator[T]:
         """Return a sub-series of the values whose call to ``key`` is unique
         as compared to the previously encountered value
         """
@@ -133,7 +116,7 @@ class Series(AsyncIterator[T_co]):
                 yield value
 
     @series
-    async def enumerate(self, start: int = 0) -> AsyncIterator[tuple[int, T_co]]:
+    async def enumerate(self, start: int = 0) -> AsyncIterator[tuple[int, T]]:
         """Return a sub-series whose values are enumerated from ``start``"""
         index = start
         async for value in self:
@@ -141,7 +124,7 @@ class Series(AsyncIterator[T_co]):
             index += 1
 
     @series
-    async def limit(self, bound: int) -> AsyncIterator[T_co]:
+    async def limit(self, bound: int) -> AsyncIterator[T]:
         """Return a sub-series limited to the first ``bound`` values
 
         Negative values for ``bound`` are treated equivalently to 0.
@@ -156,7 +139,7 @@ class Series(AsyncIterator[T_co]):
             count += 1
 
     @series
-    async def map(self, mapper: Callable[[T_co], S]) -> AsyncIterator[S]:
+    async def map[S](self, mapper: Callable[[T], S]) -> AsyncIterator[S]:
         """Return a sub-series of the results from passing each value to
         ``mapper``
         """
@@ -164,15 +147,15 @@ class Series(AsyncIterator[T_co]):
             yield mapper(value)
 
     @overload
-    def zip(self: Series[T1]) -> Series[tuple[T1]]: ...
+    def zip(self) -> Series[tuple[T]]: ...
     @overload
-    def zip(self: Series[T1], other2: AsyncIterable[T2], /) -> Series[tuple[T1, T2]]: ...
+    def zip[T1](self, other1: AsyncIterable[T1], /) -> Series[tuple[T, T1]]: ...
     @overload
-    def zip(self: Series[T1], other2: AsyncIterable[T2], other3: AsyncIterable[T3], /) -> Series[tuple[T1, T2, T3]]: ...
+    def zip[T1, T2](self, other1: AsyncIterable[T1], other2: AsyncIterable[T2], /) -> Series[tuple[T, T1, T2]]: ...
     @overload
-    def zip(self: Series[T1], other2: AsyncIterable[T2], other3: AsyncIterable[T3], other4: AsyncIterable[T4], /) -> Series[tuple[T1, T2, T3, T4]]: ...
+    def zip[T1, T2, T3](self, other1: AsyncIterable[T1], other2: AsyncIterable[T2], other3: AsyncIterable[T3], /) -> Series[tuple[T, T1, T2, T3]]: ...
     @overload
-    def zip(self: Series[T1], other2: AsyncIterable[T2], other3: AsyncIterable[T3], other4: AsyncIterable[T4], other5: AsyncIterable[T5], /) -> Series[tuple[T1, T2, T3, T4, T5]]: ...
+    def zip[T1, T2, T3, T4](self, other1: AsyncIterable[T1], other2: AsyncIterable[T2], other3: AsyncIterable[T3], other4: AsyncIterable[T4], /) -> Series[tuple[T, T1, T2, T3, T4]]: ...
     @overload
     def zip(self, *others: AsyncIterable) -> Series[tuple]: ...
     @series
@@ -189,21 +172,21 @@ class Series(AsyncIterator[T_co]):
             return
 
     @series
-    async def broadcast(self, *others: *Ts) -> AsyncIterator[tuple[T_co, *Ts]]:
+    async def broadcast[*Ts](self, *others: *Ts) -> AsyncIterator[tuple[T, *Ts]]:
         """Return a sub-series of the values zipped with repeated objects"""
         async for value in self:
             yield (value, *others)
 
     @overload
-    def merge(self: Series[T1]) -> Series[T1]: ...
+    def merge(self) -> Series[T]: ...
     @overload
-    def merge(self: Series[T1], other2: AsyncIterable[T2], /) -> Series[T1 | T2]: ...
+    def merge[T1](self, other1: AsyncIterable[T1], /) -> Series[T | T1]: ...
     @overload
-    def merge(self: Series[T1], other2: AsyncIterable[T2], other3: AsyncIterable[T3], /) -> Series[T1 | T2 | T3]: ...
+    def merge[T1, T2](self, other1: AsyncIterable[T1], other2: AsyncIterable[T2], /) -> Series[T | T1 | T2]: ...
     @overload
-    def merge(self: Series[T1], other2: AsyncIterable[T2], other3: AsyncIterable[T3], other4: AsyncIterable[T4], /) -> Series[T1 | T2 | T3 | T4]: ...
+    def merge[T1, T2, T3](self, other1: AsyncIterable[T1], other2: AsyncIterable[T2], other3: AsyncIterable[T3], /) -> Series[T | T1 | T2 | T3]: ...
     @overload
-    def merge(self: Series[T1], other2: AsyncIterable[T2], other3: AsyncIterable[T3], other4: AsyncIterable[T4], other5: AsyncIterable[T5], /) -> Series[T1 | T2 | T3 | T4 | T5]: ...
+    def merge[T1, T2, T3, T4](self, other1: AsyncIterable[T1], other2: AsyncIterable[T2], other3: AsyncIterable[T3], other4: AsyncIterable[T4], /) -> Series[T | T1 | T2 | T3 | T4]: ...
     @overload
     def merge(self, *others: AsyncIterable) -> Series: ...
     @series
@@ -237,7 +220,7 @@ class Series(AsyncIterator[T_co]):
                     yield result
 
     @series
-    async def star_map(self: Series[tuple[*Ts]], mapper: Callable[[*Ts], S]) -> AsyncIterator[S]:
+    async def star_map[*Ts, S](self: Series[tuple[*Ts]], mapper: Callable[[*Ts], S]) -> AsyncIterator[S]:
         """Return a sub-series of the results from unpacking and passing each
         value to ``mapper``
         """
@@ -245,11 +228,11 @@ class Series(AsyncIterator[T_co]):
             yield mapper(*values)
 
     @overload
-    def filter(self, predicate: Callable[[T_co], TypeGuard[S]]) -> Series[S]: ...
+    def filter[S](self, predicate: Callable[[T], TypeGuard[S]]) -> Series[S]: ...
     @overload
-    def filter(self, predicate: Callable[[T_co], object]) -> Series[T_co]: ...
+    def filter(self, predicate: Callable[[T], object]) -> Series[T]: ...
     @series
-    async def filter(self, predicate: Callable[[T_co], object]) -> AsyncIterator[T_co]:
+    async def filter(self, predicate: Callable[[T], object]) -> AsyncIterator[T]:
         """Return a sub-series of the values whose call to ``predicate``
         evaluates true
         """
@@ -257,15 +240,15 @@ class Series(AsyncIterator[T_co]):
             if predicate(value):
                 yield value
 
-    def truthy(self) -> Series[T_co]:
+    def truthy(self) -> Series[T]:
         """Return a sub-series of the values filtered by their truthyness"""
         return self.filter(lambda value: value)
 
-    def falsy(self) -> Series[T_co]:
+    def falsy(self) -> Series[T]:
         """Return a sub-series of the values filtered by their falsyness"""
         return self.filter(lambda value: not value)
 
-    def not_none(self: Series[Optional[S]]) -> Series[S]:
+    def not_none[S](self: Series[Optional[S]]) -> Series[S]:
         """Return a sub-series of the values that are not ``None``"""
         return self.filter(lambda value: value is not None)  # type: ignore
 
@@ -277,14 +260,14 @@ class Series(AsyncIterator[T_co]):
         """Return true if any value is true, otherwise false"""
         return bool(await anext(self.truthy(), False))
 
-    async def collect(self) -> list[T_co]:
+    async def collect(self) -> list[T]:
         """Return the values accumulated as a ``list``"""
         result = []
         async for value in self:
             result.append(value)
         return result
 
-    async def reduce(self, initial: S, reducer: Callable[[S, T_co], S]) -> S:
+    async def reduce[S](self, initial: S, reducer: Callable[[S, T], S]) -> S:
         """Return the values accumulated as one via left-fold"""
         result = initial
         async for value in self:
