@@ -1,21 +1,18 @@
 from __future__ import annotations
 
 __all__ = [
-    "Channel",
     "LatentChannel",
+    "Channel",
 ]
 
 import asyncio
 from collections import deque as Deque
-from typing import Generic, Optional, TypeVar
+from typing import Optional
 
 from .protocols import SupportsSendAndRecv
 
-T = TypeVar("T")
 
-
-class Channel(SupportsSendAndRecv[T, T], Generic[T]):
-    """A basic send-and-receive channel with optional buffering"""
+class LatentChannel[T](SupportsSendAndRecv[T, T]):
 
     __slots__ = ("_values")
     _values: Deque[T]
@@ -45,8 +42,6 @@ class Channel(SupportsSendAndRecv[T, T], Generic[T]):
         return len(self) == 0
 
     async def send(self, value: T, /) -> None:
-        while self.full():
-            await asyncio.sleep(0)
         self._values.append(value)
 
     async def recv(self) -> T:
@@ -55,12 +50,11 @@ class Channel(SupportsSendAndRecv[T, T], Generic[T]):
         return self._values.popleft()
 
 
-class LatentChannel(Channel[T]):
-    """A type of channel that "drops" the eldest value when sending at buffer
-    capacity
-    """
+class Channel[T](LatentChannel[T]):
 
     __slots__ = ()
 
     async def send(self, value: T, /) -> None:
-        self._values.append(value)
+        while self.full():
+            await asyncio.sleep(0)
+        await super().send(value)
