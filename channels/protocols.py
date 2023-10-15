@@ -1,30 +1,23 @@
 from __future__ import annotations
 
 __all__ = [
-    "StopRecv",
-    "StopSend",
+    "Signal",
     "SupportsRecv",
     "SupportsSend",
     "SupportsSendAndRecv",
 ]
 
+import enum
 from abc import abstractmethod
 from collections.abc import AsyncIterable, AsyncIterator
+from enum import Flag
 from typing import Any, Protocol
 
 from .series import Series, series
 
 
-class StopRecv(Exception):
-    """Values can no longer be received"""
-
-    __slots__ = ()
-
-
-class StopSend(Exception):
-    """Values can no longer be sent"""
-
-    __slots__ = ()
+class Signal(Flag):
+    STOP = enum.auto()
 
 
 class SupportsRecv[T](Protocol):
@@ -34,69 +27,33 @@ class SupportsRecv[T](Protocol):
         return self.recv_each()
 
     @abstractmethod
-    async def recv(self) -> T:
-        """Receive a value, waiting for one to become available
-
-        This method can raise ``StopRecv`` to signal that no further values
-        can be received.
-        """
+    async def recv(self) -> T | Signal:
+        """Receive a value, waiting for one to become available"""
         raise NotImplementedError
 
     @series
     async def recv_each(self) -> AsyncIterator[T]:
         """Return an async iterator that continuously receives values until
-        ``StopRecv``
+        encountering ``Signal.STOP``
         """
-        try:
-            while True:
-                yield await self.recv()
-        except StopRecv:
-            return
-
-    async def try_recv(self) -> StopRecv | T:
-        """Wrapper of ``recv()`` that returns captured ``StopRecv`` exceptions
-        rather than raising them
-        """
-        try:
-            value = await self.recv()
-        except StopRecv as error:
-            return error
-        else:
-            return value
+        while (value := await self.recv()) is not Signal.STOP:
+            yield value
 
 
 class SupportsSend[T](Protocol):
     """Type supports sending operations"""
 
     @abstractmethod
-    async def send(self, value: T, /) -> Any:
-        """Send a value, waiting for an appropriate time to do so
-
-        This method can raise ``StopSend`` to signal that no further values
-        can be sent.
-        """
+    async def send(self, value: T | Signal, /) -> Any:
+        """Send a value, waiting for an appropriate time to do so"""
         raise NotImplementedError
 
-    async def send_each(self, values: AsyncIterable[T], /) -> Any:
-        """Send values from an async iterable until exhaustion, or until
-        ``StopSend``
-        """
-        try:
-            async for value in values:
-                await self.send(value)
-        except StopSend:
-            return
-
-    async def try_send(self, value: T, /) -> StopSend | Any:
-        """Wrapper of ``send()`` that returns captured ``StopSend`` exceptions
-        rather than raising them
-        """
-        try:
-            result = await self.send(value)
-        except StopSend as error:
-            return error
-        else:
-            return result
+    async def send_each(self, values: AsyncIterable[T | Signal], /) -> Any:
+        """Send values from an async iterable until exhaustion"""
+        async for value in values:
+            await self.send(value)
+            if value is Signal.STOP:
+                return
 
 
 class SupportsSendAndRecv[T1, T2](SupportsSend[T1], SupportsRecv[T2], Protocol):
