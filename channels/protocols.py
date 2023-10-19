@@ -2,6 +2,7 @@ from __future__ import annotations
 
 __all__ = [
     "Closure",
+    "SupportsClose",
     "SupportsRecv",
     "SupportsSend",
     "SupportsSendAndRecv",
@@ -17,6 +18,18 @@ from .series import Series, series
 class Closure(Exception):
 
     __slots__ = ()
+
+
+class SupportsClose(Protocol):
+
+    @abstractmethod
+    async def close(self) -> Any:
+        """Send a request to close
+
+        How the sub-class decides to handle multiple calls to ``close()`` is
+        left up to the implementor.
+        """
+        raise NotImplementedError
 
 
 class SupportsRecv[T](Protocol):
@@ -43,7 +56,7 @@ class SupportsRecv[T](Protocol):
             return
 
 
-class SupportsSend[T](Protocol):
+class SupportsSend[T](SupportsClose, Protocol):
     """Type supports sending operations"""
 
     @abstractmethod
@@ -63,10 +76,6 @@ class SupportsSend[T](Protocol):
                 await self.send(value)
         except Closure:
             return
-
-    @abstractmethod
-    def close(self) -> None:
-        raise NotImplementedError
 
 
 class SupportsSendAndRecv[T1, T2](SupportsSend[T1], SupportsRecv[T2], Protocol):
