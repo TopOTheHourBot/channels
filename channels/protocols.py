@@ -1,23 +1,16 @@
 from __future__ import annotations
 
 __all__ = [
-    "Signal",
     "SupportsRecv",
     "SupportsSend",
     "SupportsSendAndRecv",
 ]
 
-import enum
 from abc import abstractmethod
 from collections.abc import AsyncIterable, AsyncIterator
-from enum import Flag
 from typing import Any, Protocol
 
 from .series import Series, series
-
-
-class Signal(Flag):
-    STOP = enum.auto()
 
 
 class SupportsRecv[T](Protocol):
@@ -26,34 +19,44 @@ class SupportsRecv[T](Protocol):
     def __aiter__(self) -> Series[T]:
         return self.recv_each()
 
+    @property
     @abstractmethod
-    async def recv(self) -> T | Signal:
+    def closing(self) -> bool:
+        raise NotImplementedError
+
+    @abstractmethod
+    async def recv(self) -> T:
         """Receive a value, waiting for one to become available"""
         raise NotImplementedError
 
     @series
     async def recv_each(self) -> AsyncIterator[T]:
-        """Return an async iterator that continuously receives values until
-        encountering ``Signal.STOP``
-        """
-        while (value := await self.recv()) is not Signal.STOP:
-            yield value
+        """Return a ``Series`` that continuously receives values until closure"""
+        while not self.closing:
+            yield await self.recv()
 
 
 class SupportsSend[T](Protocol):
     """Type supports sending operations"""
 
+    @property
     @abstractmethod
-    async def send(self, value: T | Signal, /) -> Any:
+    def closing(self) -> bool:
+        raise NotImplementedError
+
+    @abstractmethod
+    async def send(self, value: T, /) -> Any:
         """Send a value, waiting for an appropriate time to do so"""
         raise NotImplementedError
 
-    async def send_each(self, values: AsyncIterable[T | Signal], /) -> Any:
+    async def send_each(self, values: AsyncIterable[T], /) -> Any:
         """Send values from an async iterable until exhaustion"""
         async for value in values:
             await self.send(value)
-            if value is Signal.STOP:
-                return
+
+    @abstractmethod
+    def close(self) -> None:
+        raise NotImplementedError
 
 
 class SupportsSendAndRecv[T1, T2](SupportsSend[T1], SupportsRecv[T2], Protocol):
