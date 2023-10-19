@@ -37,11 +37,10 @@ class SupportsRecv[T](Protocol):
     async def recv_each(self) -> AsyncIterator[T]:
         """Return a ``Series`` that continuously receives values until closure"""
         try:
-            value = await self.recv()
+            while True:
+                yield await self.recv()
         except Closure:
             return
-        else:
-            yield value
 
 
 class SupportsSend[T](Protocol):
