@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 __all__ = [
+    "Closure",
     "SupportsRecv",
     "SupportsSend",
     "SupportsSendAndRecv",
@@ -13,46 +14,56 @@ from typing import Any, Protocol
 from .series import Series, series
 
 
+class Closure(Exception):
+
+    __slots__ = ()
+
+
 class SupportsRecv[T](Protocol):
     """Type supports receiving operations"""
 
     def __aiter__(self) -> Series[T]:
         return self.recv_each()
 
-    @property
-    @abstractmethod
-    def closing(self) -> bool:
-        raise NotImplementedError
-
     @abstractmethod
     async def recv(self) -> T:
-        """Receive a value, waiting for one to become available"""
+        """Receive a value, waiting for one to become available
+
+        Raises ``Closure`` if no further values can be received.
+        """
         raise NotImplementedError
 
     @series
     async def recv_each(self) -> AsyncIterator[T]:
         """Return a ``Series`` that continuously receives values until closure"""
-        while not self.closing:
-            yield await self.recv()
+        try:
+            value = await self.recv()
+        except Closure:
+            return
+        else:
+            yield value
 
 
 class SupportsSend[T](Protocol):
     """Type supports sending operations"""
 
-    @property
-    @abstractmethod
-    def closing(self) -> bool:
-        raise NotImplementedError
-
     @abstractmethod
     async def send(self, value: T, /) -> Any:
-        """Send a value, waiting for an appropriate time to do so"""
+        """Send a value, waiting for an appropriate time to do so
+
+        Raises ``Closure`` if no further values can be sent.
+        """
         raise NotImplementedError
 
     async def send_each(self, values: AsyncIterable[T], /) -> Any:
-        """Send values from an async iterable until exhaustion"""
-        async for value in values:
-            await self.send(value)
+        """Send values from an async iterable until exhaustion, or until
+        closure
+        """
+        try:
+            async for value in values:
+                await self.send(value)
+        except Closure:
+            return
 
     @abstractmethod
     def close(self) -> None:

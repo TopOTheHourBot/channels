@@ -7,7 +7,7 @@ from asyncio import Future
 from collections import deque as Deque
 from typing import override
 
-from .protocols import SupportsSendAndRecv
+from .protocols import Closure, SupportsSendAndRecv
 
 
 class Channel[T](SupportsSendAndRecv[T, T]):
@@ -30,7 +30,6 @@ class Channel[T](SupportsSendAndRecv[T, T]):
         return len(self._values)
 
     @property
-    @override
     def closing(self) -> bool:
         return self._closing
 
@@ -51,6 +50,8 @@ class Channel[T](SupportsSendAndRecv[T, T]):
 
     @override
     async def send(self, value: T, /) -> None:
+        if self.closing:
+            raise Closure
         while self.full():
             putter = asyncio.get_running_loop().create_future()
             self._putters.append(putter)
@@ -70,6 +71,8 @@ class Channel[T](SupportsSendAndRecv[T, T]):
 
     @override
     async def recv(self) -> T:
+        if self.closing:
+            raise Closure
         while self.empty():
             getter = asyncio.get_running_loop().create_future()
             self._getters.append(getter)
