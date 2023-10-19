@@ -50,9 +50,9 @@ class Channel[T](SupportsSendAndRecv[T, T]):
 
     @override
     async def send(self, value: T, /) -> None:
+        if self.closing:
+            raise Closure
         while self.full():
-            if self.closing:
-                raise Closure
             putter = asyncio.get_running_loop().create_future()
             self._putters.append(putter)
             try:
@@ -71,9 +71,9 @@ class Channel[T](SupportsSendAndRecv[T, T]):
 
     @override
     async def recv(self) -> T:
+        if self.closing:
+            raise Closure
         while self.empty():
-            if self.closing:
-                raise Closure
             getter = asyncio.get_running_loop().create_future()
             self._getters.append(getter)
             try:
