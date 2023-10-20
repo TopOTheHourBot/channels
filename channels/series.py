@@ -213,14 +213,13 @@ class Series[T](AsyncIterator[T]):
         while todo:
             done, todo = await asyncio.wait(todo, return_when=asyncio.FIRST_COMPLETED)
             for task in done:
+                name = task.get_name()
                 try:
                     result = task.result()
                 except StopAsyncIteration:
-                    name = task.get_name()
                     del its[name]
                     continue
                 else:
-                    name = task.get_name()
                     it = its[name]
                     task = asyncio.create_task(anext(it), name=name)
                     todo.add(task)
