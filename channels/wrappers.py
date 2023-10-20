@@ -74,7 +74,7 @@ class SendOnlyLimiter[T](SendOnly[T]):
         current event loop time, ``stop`` is the next available time to send,
         and ``step`` is the amount of time to delay before reaching ``stop``
         """
-        curr_send_time = asyncio.get_event_loop().time()
+        curr_send_time = asyncio.get_running_loop().time()
         prev_send_time = self._prev_send_time
         cooldown = self._cooldown if prev_send_time else curr_send_time
         delay = max(cooldown - (curr_send_time - prev_send_time), 0)
