@@ -31,6 +31,9 @@ class SendOnly[T](SupportsSend[T]):
     def send(self, value: T, /) -> Coroutine[Any, Any, Any]:
         return self._channel.send(value)
 
+    def close(self) -> Any:
+        return self._channel.close()
+
 
 class RecvOnly[T](SupportsRecv[T]):
 
