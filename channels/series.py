@@ -17,6 +17,11 @@ def identity[T](value: T, /) -> T:
     return value
 
 
+def not_none[T](value: Optional[T], /) -> TypeGuard[T]:
+    """Return true if ``value`` is not ``None``, otherwise false"""
+    return value is not None
+
+
 def series[**P, T](func: Callable[P, AsyncIterator[T]], /) -> Callable[P, Series[T]]:
     """Convert a function's return type from an ``AsyncIterator[T]`` to
     ``Series[T]``
@@ -250,7 +255,7 @@ class Series[T](AsyncIterator[T]):
 
     def not_none[S](self: Series[Optional[S]]) -> Series[S]:
         """Return a sub-series of the values that are not ``None``"""
-        return self.filter(lambda value: value is not None)  # type: ignore
+        return self.filter(not_none)
 
     async def all(self) -> bool:
         """Return true if all values are true, otherwise false"""
