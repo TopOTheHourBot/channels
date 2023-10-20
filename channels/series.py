@@ -216,6 +216,8 @@ class Series[T](AsyncIterator[T]):
                 try:
                     result = task.result()
                 except StopAsyncIteration:
+                    name = task.get_name()
+                    del its[name]
                     continue
                 else:
                     name = task.get_name()
