@@ -30,11 +30,6 @@ class Channel[T](SupportsSendAndRecv[T, T]):
         return len(self._values)
 
     @property
-    def closed(self) -> bool:
-        """True if the channel has been closed, otherwise false"""
-        return self._closer.done()
-
-    @property
     def size(self) -> int:
         """The channel's current size"""
         return len(self._values)
@@ -76,7 +71,7 @@ class Channel[T](SupportsSendAndRecv[T, T]):
 
         Raises ``Closure`` if the channel has been closed.
         """
-        if self.closed:
+        if self.closed():
             raise Closure
         while self.full():
             putter = asyncio.get_running_loop().create_future()
@@ -101,7 +96,7 @@ class Channel[T](SupportsSendAndRecv[T, T]):
 
         Raises ``Closure`` if the channel has been closed.
         """
-        if self.closed:
+        if self.closed():
             raise Closure
         while self.empty():
             getter = asyncio.get_running_loop().create_future()
@@ -120,6 +115,10 @@ class Channel[T](SupportsSendAndRecv[T, T]):
         value = self._values.popleft()
         self._wake_next(self._putters)
         return value
+
+    def closed(self) -> bool:
+        """Return true if the channel has been closed, otherwise false"""
+        return self._closer.done()
 
     def empty(self) -> bool:
         """Return true if the channel is empty, otherwise false"""
