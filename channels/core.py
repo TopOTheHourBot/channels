@@ -57,10 +57,6 @@ class Channel[T](SupportsSendAndRecv[T, T]):
 
         Raises ``RuntimeError`` if the channel has already been closed.
 
-        Sending to the channel after closing will raise ``Closure``. Receiving
-        from the channel is permitted for as long as the channel remains
-        non-empty, and will raise ``Closure`` otherwise.
-
         Any outstanding requests to send or receive at the moment of closure
         will have ``Closure`` raised into them.
         """
@@ -72,6 +68,7 @@ class Channel[T](SupportsSendAndRecv[T, T]):
             waiter.set_exception(Closure)
         for waiter in self._getters:
             waiter.set_exception(Closure)
+        self._values.clear()  # Help the garbage collector out
 
     @override
     async def send(self, value: T, /) -> None:
@@ -102,9 +99,9 @@ class Channel[T](SupportsSendAndRecv[T, T]):
     async def recv(self) -> T:
         """Receive a value from the channel
 
-        Raises ``Closure`` if the channel has been closed and is empty.
+        Raises ``Closure`` if the channel has been closed.
         """
-        if self.closed and self.empty():
+        if self.closed:
             raise Closure
         while self.empty():
             getter = asyncio.get_running_loop().create_future()
