@@ -62,7 +62,7 @@ class Channel[T](SupportsSendAndRecv[T, T]):
         non-empty, and will raise ``Closure`` otherwise.
 
         Any outstanding requests to send or receive at the moment of closure
-        will have ``Closure`` raised.
+        will have ``Closure`` raised into them.
         """
         try:
             self._closer.set_result(None)
