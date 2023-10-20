@@ -66,7 +66,8 @@ class SendOnlyLimiter[T](SendOnly[T]):
     async def send(self, value: T, /) -> Any:
         _, next_send_time, delay = self.wait_span()
         self._prev_send_time = next_send_time
-        await asyncio.sleep(delay)
+        if delay:
+            await asyncio.sleep(delay)
         return await super().send(value)
 
     def wait_span(self) -> Timespan:

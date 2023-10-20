@@ -55,7 +55,7 @@ class Series[T](AsyncIterator[T]):
         Staggers before the first retrieval if ``first`` is true.
         """
         delay = max(0, delay)
-        loop  = asyncio.get_event_loop()
+        loop  = asyncio.get_running_loop()
 
         if first:
             await asyncio.sleep(delay)
