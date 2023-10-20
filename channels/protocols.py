@@ -23,32 +23,21 @@ class Closure(Exception):
 class SupportsClose(Protocol):
 
     @abstractmethod
-    async def close(self) -> Any:
-        """Send a request to close
-
-        How the sub-class decides to handle multiple calls to ``close()`` is
-        left up to the implementor.
-        """
+    def close(self) -> Any:
         raise NotImplementedError
 
 
 class SupportsRecv[T](Protocol):
-    """Type supports receiving operations"""
 
     def __aiter__(self) -> Series[T]:
         return self.recv_each()
 
     @abstractmethod
     async def recv(self) -> T:
-        """Receive a value, waiting for one to become available
-
-        Raises ``Closure`` if no further values can be received.
-        """
         raise NotImplementedError
 
     @series
     async def recv_each(self) -> AsyncIterator[T]:
-        """Return a ``Series`` that continuously receives values until closure"""
         try:
             while True:
                 yield await self.recv()
@@ -57,20 +46,12 @@ class SupportsRecv[T](Protocol):
 
 
 class SupportsSend[T](SupportsClose, Protocol):
-    """Type supports sending operations"""
 
     @abstractmethod
     async def send(self, value: T, /) -> Any:
-        """Send a value, waiting for an appropriate time to do so
-
-        Raises ``Closure`` if no further values can be sent.
-        """
         raise NotImplementedError
 
     async def send_each(self, values: AsyncIterable[T], /) -> Any:
-        """Send values from an async iterable until exhaustion, or until
-        closure
-        """
         try:
             async for value in values:
                 await self.send(value)
@@ -79,4 +60,4 @@ class SupportsSend[T](SupportsClose, Protocol):
 
 
 class SupportsSendAndRecv[T1, T2](SupportsSend[T1], SupportsRecv[T2], Protocol):
-    """Type supports both sending and receiving operations"""
+    ...

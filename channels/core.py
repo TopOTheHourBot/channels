@@ -52,18 +52,26 @@ class Channel[T](SupportsSendAndRecv[T, T]):
                 break
 
     @override
-    async def close(self) -> None:
-        """Close the channel
+    def close(self) -> None:
+        """Request to close the channel
 
-        Raises ``Closure`` if the channel has already been closed.
+        Raises ``RuntimeError`` if the channel has already been closed.
 
-        When closed, subsequent calls to ``send()`` and ``recv()`` will raise
-        ``Closure``. Ongoing calls will continue to execute as normal.
+        Sending to the channel after closing will raise ``Closure``. Receiving
+        from the channel is permitted for as long as the channel remains
+        non-empty, and will raise ``Closure`` otherwise.
+
+        Any outstanding requests to send or receive at the moment of closure
+        will have ``Closure`` raised.
         """
         try:
             self._closer.set_result(None)
         except InvalidStateError as error:
-            raise Closure("channel has already been closed") from error
+            raise RuntimeError("channel has already been closed") from error
+        for waiter in self._putters:
+            waiter.set_exception(Closure)
+        for waiter in self._getters:
+            waiter.set_exception(Closure)
 
     @override
     async def send(self, value: T, /) -> None:
@@ -72,7 +80,7 @@ class Channel[T](SupportsSendAndRecv[T, T]):
         Raises ``Closure`` if the channel has been closed.
         """
         if self.closed:
-            raise Closure("channel has been closed")
+            raise Closure
         while self.full():
             putter = asyncio.get_running_loop().create_future()
             self._putters.append(putter)
@@ -94,10 +102,10 @@ class Channel[T](SupportsSendAndRecv[T, T]):
     async def recv(self) -> T:
         """Receive a value from the channel
 
-        Raises ``Closure`` if the channel has been closed.
+        Raises ``Closure`` if the channel has been closed and is empty.
         """
-        if self.closed:
-            raise Closure("channel has been closed")
+        if self.closed and self.empty():
+            raise Closure
         while self.empty():
             getter = asyncio.get_running_loop().create_future()
             self._getters.append(getter)
