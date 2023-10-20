@@ -47,23 +47,25 @@ class Channel[T](SupportsSendAndRecv[T, T]):
                 break
 
     @override
-    def close(self) -> None:
+    def close(self) -> bool:
         """Request to close the channel
 
-        Raises ``RuntimeError`` if the channel has already been closed.
+        Returns true if the channel has been closed, false if the channel has
+        already been closed.
 
         Any outstanding requests to send or receive at the moment of closure
         will have ``Closure`` raised into them.
         """
         try:
             self._closer.set_result(None)
-        except InvalidStateError as error:
-            raise RuntimeError("channel has already been closed") from error
+        except InvalidStateError:
+            return False
         for waiter in self._putters:
             waiter.set_exception(Closure)
         for waiter in self._getters:
             waiter.set_exception(Closure)
         self._values.clear()  # Help the garbage collector out
+        return True
 
     @override
     async def send(self, value: T, /) -> None:
