@@ -8,7 +8,7 @@ __all__ = [
 import asyncio
 from asyncio import Task
 from asyncio import TimeoutError as AsyncTimeoutError
-from collections.abc import AsyncIterable, AsyncIterator, Callable
+from collections.abc import AsyncIterator, Callable
 from typing import Optional, TypeGuard, final, overload
 
 
@@ -17,8 +17,8 @@ def identity[T](value: T, /) -> T:
     return value
 
 
-def series[**P, T](func: Callable[P, AsyncIterable[T]], /) -> Callable[P, Series[T]]:
-    """Convert a function's return type from an ``AsyncIterable[T]`` to
+def series[**P, T](func: Callable[P, AsyncIterator[T]], /) -> Callable[P, Series[T]]:
+    """Convert a function's return type from an ``AsyncIterator[T]`` to
     ``Series[T]``
     """
 
@@ -40,8 +40,8 @@ class Series[T](AsyncIterator[T]):
     __slots__ = ("_values")
     _values: AsyncIterator[T]
 
-    def __init__(self, values: AsyncIterable[T], /) -> None:
-        self._values = aiter(values)
+    def __init__(self, values: AsyncIterator[T], /) -> None:
+        self._values = values
 
     async def __anext__(self) -> T:
         value = await anext(self._values)
