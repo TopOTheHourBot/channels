@@ -80,10 +80,9 @@ class Channel[T](SupportsSendAndRecv[T, T]):
             self._putters.append(putter)
             try:
                 await putter
-            except:
+            finally:
                 putter.cancel()
                 self._putters.remove(putter)
-                raise
         self._values.append(value)
         self._wake_next(self._getters)
 
@@ -100,10 +99,9 @@ class Channel[T](SupportsSendAndRecv[T, T]):
             self._getters.append(getter)
             try:
                 await getter
-            except:
+            finally:
                 getter.cancel()
                 self._getters.remove(getter)
-                raise
         value = self._values.popleft()
         self._wake_next(self._putters)
         return value
