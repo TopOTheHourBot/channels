@@ -30,14 +30,22 @@ class SupportsClose(Protocol):
 class SupportsRecv[T](Protocol):
 
     def __aiter__(self) -> Series[T]:
-        return self.recv_each()
+        return self.recv_all()
 
     @abstractmethod
     async def recv(self) -> T:
         raise NotImplementedError
 
+    async def try_recv[S](self, *, default: S = None) -> T | S:
+        try:
+            value = await self.recv()
+        except Closure:
+            return default
+        else:
+            return value
+
     @series
-    async def recv_each(self) -> AsyncIterator[T]:
+    async def recv_all(self) -> AsyncIterator[T]:
         try:
             while True:
                 yield await self.recv()
@@ -48,10 +56,16 @@ class SupportsRecv[T](Protocol):
 class SupportsSend[T](SupportsClose, Protocol):
 
     @abstractmethod
-    async def send(self, value: T, /) -> Any:
+    async def send(self, value: T, /) -> None:
         raise NotImplementedError
 
-    async def send_each(self, values: AsyncIterable[T], /) -> Any:
+    async def try_send(self, value: T, /) -> None:
+        try:
+            await self.send(value)
+        except Closure:
+            return
+
+    async def send_all(self, values: AsyncIterable[T], /) -> Any:
         try:
             async for value in values:
                 await self.send(value)
