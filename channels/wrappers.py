@@ -92,7 +92,7 @@ class SendOnlyLimiter[T](SendOnly[T]):
         self._predicate = predicate
 
     @override
-    async def send(self, value: T, /) -> Any:
+    async def send(self, value: T, /) -> None:
         if self.predicate(value):
             curr_send_time, next_send_time, delay = self.wait_span()
             self._prev_send_time = next_send_time
