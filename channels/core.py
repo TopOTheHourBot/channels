@@ -60,11 +60,11 @@ class Channel[T](SupportsSendAndRecv[T, T]):
             self._closer.set_result(None)
         except InvalidStateError:
             return False
+        self._values.clear()  # Help the garbage collector out
         for waiter in self._putters:
             waiter.set_exception(Closure)
         for waiter in self._getters:
             waiter.set_exception(Closure)
-        self._values.clear()  # Help the garbage collector out
         return True
 
     @override
