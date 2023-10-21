@@ -82,12 +82,7 @@ class Channel[T](SupportsSendAndRecv[T, T]):
                 await putter
             except:
                 putter.cancel()
-                try:
-                    self._putters.remove(putter)
-                except ValueError:
-                    pass
-                if not self.full() and not putter.cancelled():
-                    self._wake_next(self._putters)
+                self._putters.remove(putter)
                 raise
         self._values.append(value)
         self._wake_next(self._getters)
@@ -107,12 +102,7 @@ class Channel[T](SupportsSendAndRecv[T, T]):
                 await getter
             except:
                 getter.cancel()
-                try:
-                    self._getters.remove(getter)
-                except ValueError:
-                    pass
-                if not self.empty() and not getter.cancelled():
-                    self._wake_next(self._getters)
+                self._getters.remove(getter)
                 raise
         value = self._values.popleft()
         self._wake_next(self._putters)
