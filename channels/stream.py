@@ -36,7 +36,7 @@ def compose[**P, T](func: Callable[P, AsyncIterator[T]]) -> Callable[P, Stream[T
 @compose
 async def call_while[T](
     func: Callable[[], Coroutine[Any, Any, T]],
-    *,
+    /,
     predicate: Callable[[T], object] = lambda _: True,
 ) -> AsyncIterator[T]:
     """Compose a new ``Stream`` that makes repeated calls to ``func`` while
