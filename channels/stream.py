@@ -277,3 +277,17 @@ class Stream[T](AsyncIterator[T]):
     async def count(self) -> int:
         """Return the number of values"""
         return await self.reduce(0, lambda count, _: count + 1)
+
+    @overload
+    async def until[S, DefaultT](self, predicate: Callable[[T], TypeGuard[S]], *, default: DefaultT = None) -> S | DefaultT: ...
+    @overload
+    async def until[DefaultT](self, predicate: Callable[[T], object], *, default: DefaultT = None) -> T | DefaultT: ...
+
+    async def until(self, predicate, *, default=None):
+        """Return the first value whose call to ``predicate`` is true,
+        otherwise ``default`` if no such value is found
+        """
+        async for value in self:
+            if predicate(value):
+                return value
+        return default
