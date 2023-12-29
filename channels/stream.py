@@ -3,6 +3,7 @@ from __future__ import annotations
 __all__ = ["Stream", "compose", "call_while"]
 
 import asyncio
+import logging
 from asyncio import Task
 from asyncio import TimeoutError as AsyncTimeoutError
 from collections.abc import AsyncIterator, Callable, Coroutine
@@ -173,20 +174,24 @@ class Stream[T](AsyncIterator[T]):
             return
 
     @overload
-    def merge(self) -> Stream[T]: ...
+    def merge(self, *, suppress_exceptions: bool = False) -> Stream[T]: ...
     @overload
-    def merge[T1](self, other1: Stream[T1], /) -> Stream[T | T1]: ...
+    def merge[T1](self, other1: Stream[T1], /, *, suppress_exceptions: bool = False) -> Stream[T | T1]: ...
     @overload
-    def merge[T1, T2](self, other1: Stream[T1], other2: Stream[T2], /) -> Stream[T | T1 | T2]: ...
+    def merge[T1, T2](self, other1: Stream[T1], other2: Stream[T2], /, *, suppress_exceptions: bool = False) -> Stream[T | T1 | T2]: ...
     @overload
-    def merge[T1, T2, T3](self, other1: Stream[T1], other2: Stream[T2], other3: Stream[T3], /) -> Stream[T | T1 | T2 | T3]: ...
+    def merge[T1, T2, T3](self, other1: Stream[T1], other2: Stream[T2], other3: Stream[T3], /, *, suppress_exceptions: bool = False) -> Stream[T | T1 | T2 | T3]: ...
     @overload
-    def merge[T1, T2, T3, T4](self, other1: Stream[T1], other2: Stream[T2], other3: Stream[T3], other4: Stream[T4], /) -> Stream[T | T1 | T2 | T3 | T4]: ...
+    def merge[T1, T2, T3, T4](self, other1: Stream[T1], other2: Stream[T2], other3: Stream[T3], other4: Stream[T4], /, *, suppress_exceptions: bool = False) -> Stream[T | T1 | T2 | T3 | T4]: ...
     @overload
-    def merge(self, *others: Stream) -> Stream: ...
+    def merge(self, *others: Stream, suppress_exceptions: bool = False) -> Stream: ...
     @compose
-    async def merge(self, *others: Stream) -> AsyncIterator:
+    async def merge(self, *others: Stream, suppress_exceptions: bool = False) -> AsyncIterator:
         """Return a sub-stream merged with other streams
+
+        If ``suppress_exceptions`` is true, exceptions raised by a stream
+        mid-iteration will be logged rather than propagated. Remaining streams
+        will continue to iterate.
 
         Iteration stops when the longest stream has been exhausted.
         """
@@ -206,9 +211,14 @@ class Stream[T](AsyncIterator[T]):
                 name = task.get_name()
                 try:
                     result = task.result()
-                except StopAsyncIteration:
-                    # Stream has been exhausted: no need to keep a reference at
-                    # this point
+                except Exception as exception:
+                    # Stream has excepted: if not StopAsyncIteration, log or
+                    # raise it depending on if we're suppressing
+                    if not isinstance(exception, StopAsyncIteration):
+                        if suppress_exceptions:
+                            logging.exception(exception)
+                        else:
+                            raise
                     del map[name]
                     continue
                 else:
@@ -254,11 +264,11 @@ class Stream[T](AsyncIterator[T]):
 
     async def all(self) -> bool:
         """Return true if all values are true, otherwise false"""
-        return bool(await anext(self.falsy(), True))
+        return bool(await self.falsy().first(default=True))
 
     async def any(self) -> bool:
         """Return true if any value is true, otherwise false"""
-        return bool(await anext(self.truthy(), False))
+        return bool(await self.truthy().first(default=False))
 
     async def collect(self) -> list[T]:
         """Return the values accumulated as a ``list``"""
@@ -283,17 +293,3 @@ class Stream[T](AsyncIterator[T]):
         is empty
         """
         return await anext(self, default)
-
-    @overload
-    async def until[S, DefaultT](self, predicate: Callable[[T], TypeGuard[S]], *, default: DefaultT = None) -> S | DefaultT: ...
-    @overload
-    async def until[DefaultT](self, predicate: Callable[[T], object], *, default: DefaultT = None) -> T | DefaultT: ...
-
-    async def until(self, predicate, *, default=None):
-        """Return the first value whose call to ``predicate`` is true,
-        otherwise ``default`` if no such value is found
-        """
-        async for value in self:
-            if predicate(value):
-                return value
-        return default
