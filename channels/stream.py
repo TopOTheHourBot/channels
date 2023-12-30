@@ -1,9 +1,15 @@
 from __future__ import annotations
 
-__all__ = ["Stream", "compose", "call_while"]
+__all__ = [
+    "Stream",
+    "compose",
+    "call_while",
+    "merge",
+]
 
 import asyncio
 import logging
+import uuid
 from asyncio import Task
 from asyncio import TimeoutError as AsyncTimeoutError
 from collections.abc import AsyncIterator, Callable, Coroutine
@@ -173,62 +179,6 @@ class Stream[T](AsyncIterator[T]):
         except StopAsyncIteration:
             return
 
-    @overload
-    def merge(self, *, suppress_exceptions: bool = False) -> Stream[T]: ...
-    @overload
-    def merge[T1](self, other1: Stream[T1], /, *, suppress_exceptions: bool = False) -> Stream[T | T1]: ...
-    @overload
-    def merge[T1, T2](self, other1: Stream[T1], other2: Stream[T2], /, *, suppress_exceptions: bool = False) -> Stream[T | T1 | T2]: ...
-    @overload
-    def merge[T1, T2, T3](self, other1: Stream[T1], other2: Stream[T2], other3: Stream[T3], /, *, suppress_exceptions: bool = False) -> Stream[T | T1 | T2 | T3]: ...
-    @overload
-    def merge[T1, T2, T3, T4](self, other1: Stream[T1], other2: Stream[T2], other3: Stream[T3], other4: Stream[T4], /, *, suppress_exceptions: bool = False) -> Stream[T | T1 | T2 | T3 | T4]: ...
-    @overload
-    def merge(self, *others: Stream, suppress_exceptions: bool = False) -> Stream: ...
-    @compose
-    async def merge(self, *others: Stream, suppress_exceptions: bool = False) -> AsyncIterator:
-        """Return a sub-stream merged with other streams
-
-        If ``suppress_exceptions`` is true, exceptions raised by a stream
-        mid-iteration will be logged rather than propagated. Remaining streams
-        will continue to iterate.
-
-        Iteration stops when the longest stream has been exhausted.
-        """
-        map = dict[str, Stream]()
-        map["0"] = self
-        for n, stream in enumerate(others, 1):
-            map[f"{n}"] = stream
-
-        todo = set[Task]()
-        for name, stream in map.items():
-            task = asyncio.create_task(anext(stream), name=name)
-            todo.add(task)
-
-        while todo:
-            done, todo = await asyncio.wait(todo, return_when=asyncio.FIRST_COMPLETED)
-            for task in done:
-                name = task.get_name()
-                try:
-                    result = task.result()
-                except Exception as exception:
-                    # Stream has excepted: if not StopAsyncIteration, log or
-                    # raise it depending on if we're suppressing
-                    if not isinstance(exception, StopAsyncIteration):
-                        if suppress_exceptions:
-                            logging.exception(exception)
-                        else:
-                            raise
-                    del map[name]
-                    continue
-                else:
-                    # Stream has yielded: await its next value and return the
-                    # current one
-                    stream = map[name]
-                    task = asyncio.create_task(anext(stream), name=name)
-                    todo.add(task)
-                    yield result
-
     @compose
     async def star_map[*Ts, S](self: Stream[tuple[*Ts]], mapper: Callable[[*Ts], S]) -> AsyncIterator[S]:
         """Return a sub-stream of the results from unpacking and passing each
@@ -293,3 +243,79 @@ class Stream[T](AsyncIterator[T]):
         is empty
         """
         return await anext(self, default)
+
+
+@final
+class Merger[T]:
+
+    __slots__ = ("_suppress_exceptions", "_streams", "_todo")
+    _suppress_exceptions: bool
+    _streams: dict[str, Stream[T]]
+    _todo: set[Task[T]]
+
+    def __init__(self, *, suppress_exceptions: bool = False) -> None:
+        self._suppress_exceptions = suppress_exceptions
+        self._streams = dict()
+        self._todo = set()
+
+    @compose
+    async def __aiter__(self) -> AsyncIterator[T]:
+        todo = self._todo
+        while todo:
+            done, _ = await asyncio.wait(todo, return_when=asyncio.FIRST_COMPLETED)
+            # We don't use the todo set returned by wait() because it's
+            # possible that a new task was added during the call
+            todo -= done
+            for task in done:
+                name = task.get_name()
+                try:
+                    result = task.result()
+                except Exception as exception:
+                    # Stream has excepted: if not StopAsyncIteration, log or
+                    # raise it depending on if we're suppressing
+                    if not isinstance(exception, StopAsyncIteration):
+                        if self._suppress_exceptions:
+                            logging.exception(exception)
+                        else:
+                            raise
+                    del self._streams[name]
+                    continue
+                else:
+                    # Stream has yielded: await its next value and return the
+                    # current one
+                    stream = self._streams[name]
+                    todo.add(asyncio.create_task(anext(stream), name=name))
+                    yield result
+
+    def add(self, stream: Stream[T]) -> str:
+        """Add a new stream to the merger and return its assigned name"""
+        name = str(uuid.uuid4())
+        self._streams[name] = stream
+        self._todo.add(asyncio.create_task(anext(stream), name=name))
+        return name
+
+
+@overload
+def merge(*, suppress_exceptions: bool = False) -> Merger: ...
+@overload
+def merge[T1](stream1: Stream[T1], /, *, suppress_exceptions: bool = False) -> Merger[T1]: ...
+@overload
+def merge[T1, T2](stream1: Stream[T1], stream2: Stream[T2], /, *, suppress_exceptions: bool = False) -> Merger[T1 | T2]: ...
+@overload
+def merge[T1, T2, T3](stream1: Stream[T1], stream2: Stream[T2], stream3: Stream[T3], /, *, suppress_exceptions: bool = False) -> Merger[T1 | T2 | T3]: ...
+@overload
+def merge[T1, T2, T3, T4](stream1: Stream[T1], stream2: Stream[T2], stream3: Stream[T3], stream4: Stream[T4], /, *, suppress_exceptions: bool = False) -> Merger[T1 | T2 | T3 | T4]: ...
+@overload
+def merge(*streams: Stream, suppress_exceptions: bool = False) -> Merger: ...
+
+def merge(*streams, suppress_exceptions=False):
+    """Return an asynchronous iterable that awaits its values from the given
+    streams as a singular stream
+
+    The object returned by this function supports addition of streams after its
+    creation, even while iterating.
+    """
+    merger = Merger(suppress_exceptions=suppress_exceptions)
+    for stream in streams:
+        merger.add(stream)
+    return merger
