@@ -228,11 +228,11 @@ class Stream[T](AsyncIterator[T]):
 
     async def all(self) -> bool:
         """Return true if all values are true, otherwise false"""
-        return bool(await self.falsy().first(default=True))
+        return bool(await self.falsy().next(default=True))
 
     async def any(self) -> bool:
         """Return true if any value is true, otherwise false"""
-        return bool(await self.truthy().first(default=False))
+        return bool(await self.truthy().next(default=False))
 
     async def collect(self) -> list[T]:
         """Return the values accumulated as a ``list``"""
@@ -252,9 +252,9 @@ class Stream[T](AsyncIterator[T]):
         """Return the number of values"""
         return await self.reduce(0, lambda count, _: count + 1)
 
-    async def first[DefaultT](self, *, default: DefaultT = None) -> T | DefaultT:
-        """Return the first value of the stream, or ``default`` if the stream
-        is empty
+    async def next[DefaultT](self, *, default: DefaultT = None) -> T | DefaultT:
+        """Return the next value of the stream, or ``default`` if the stream is
+        empty
         """
         return await anext(self, default)
 
@@ -271,6 +271,8 @@ class Merger[T]:
         self._suppress_exceptions = suppress_exceptions
         self._streams = dict()
         self._todo = set()
+
+    # TODO: Build new implementation of asyncio.wait() for this?
 
     @compose
     async def __aiter__(self) -> AsyncIterator[T]:
