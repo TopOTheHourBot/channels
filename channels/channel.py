@@ -6,7 +6,7 @@ import asyncio
 from asyncio import Future
 from collections import deque as Deque
 from collections.abc import AsyncIterator
-from typing import Optional, final
+from typing import Optional, Self, final
 
 from . import stream
 from .exceptions import Closure
@@ -15,15 +15,15 @@ from .exceptions import Closure
 @final
 class Channel[T]:
 
-    __slots__ = ("_buffer", "_receiver", "_closer")
+    __slots__ = ("_buffer", "_receiver", "_closed")
     _buffer: Deque[T]
     _receiver: Optional[Future[None]]
-    _closer: Future[None]
+    _closed: bool
 
     def __init__(self, max_size: Optional[int] = None) -> None:
         self._buffer = Deque((), max_size)
         self._receiver = None
-        self._closer = asyncio.get_running_loop().create_future()
+        self._closed = False
 
     @stream.compose
     async def __aiter__(self) -> AsyncIterator[T]:
@@ -33,6 +33,21 @@ class Channel[T]:
         except Closure:
             return
 
+    @property
+    def size(self) -> int:
+        """The channel's current size"""
+        return len(self._buffer)
+
+    @property
+    def max_size(self) -> Optional[int]:
+        """The channel's maximum size"""
+        return self._buffer.maxlen
+
+    @property
+    def closed(self) -> bool:
+        """The channel's closed state"""
+        return self._closed
+
     def send(self, value: T, /) -> None:
         """Send a value to the channel
 
@@ -41,13 +56,12 @@ class Channel[T]:
 
         Raises ``Closure`` if the channel has been closed.
         """
-        if self.is_closed():
+        if self._closed:
             raise Closure
         self._buffer.append(value)
         receiver = self._receiver
-        if receiver is None or receiver.done():
-            return
-        receiver.set_result(None)
+        if not (receiver is None or receiver.done()):
+            receiver.set_result(None)
 
     async def recv(self) -> T:
         """Receive a value from the channel
@@ -58,7 +72,7 @@ class Channel[T]:
         Raises ``RuntimeError`` if the channel is receiving in another
         coroutine (debug only).
         """
-        if self.is_closed():
+        if self._closed:
             raise Closure
         if __debug__:
             if self._receiver is not None:
@@ -73,27 +87,26 @@ class Channel[T]:
                 self._receiver = None
         return buffer.popleft()
 
-    def close(self) -> None:
+    def open(self) -> Self:
+        """Open the channel"""
+        self._closed = False
+        return self
+
+    def close(self) -> Self:
         """Close the channel
 
         Raises ``Closure`` into the active ``recv()`` call (if one exists).
         """
-        closer = self._closer
-        if closer.done():
-            return
-        closer.set_result(None)
+        self._closed = True
         receiver = self._receiver
-        if receiver is None or receiver.done():
-            return
-        receiver.set_exception(Closure)
+        if not (receiver is None or receiver.done()):
+            receiver.set_exception(Closure)
+        return self
 
-    def clear(self) -> None:
+    def clear(self) -> Self:
         """Clear the channel
 
         Discards all values from the channel buffer.
         """
         self._buffer.clear()
-
-    def is_closed(self) -> bool:
-        """Return true if the channel has been closed, otherwise false"""
-        return self._closer.done()
+        return self
