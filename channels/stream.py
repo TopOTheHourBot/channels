@@ -59,32 +59,18 @@ class Stream[T](AsyncIterator[T]):
     operations and waiting utilities
     """
 
-    __slots__ = ("_values", "_closer")
+    __slots__ = ("_values")
     _values: AsyncIterator[T]
-    _closer: Future[None]
 
     def __init__(self, values: AsyncIterator[T], /) -> None:
         self._values = values
-        self._closer = asyncio.get_running_loop().create_future()
-
-    def __await__(self) -> Generator[Any, None, None]:
-        return self._closer.__await__()
 
     def __aiter__(self) -> Self:
         return self
 
     async def __anext__(self) -> T:
-        try:
-            value = await anext(self._values)
-        except StopAsyncIteration:
-            self._closer.set_result(None)
-            raise
-        else:
-            return value
-
-    def done(self) -> bool:
-        """Return true if the stream has been exhausted, otherwise false"""
-        return self._closer.done()
+        value = await anext(self._values)
+        return value
 
     @compose
     async def finite_timeout(self, delay: float, *, first: bool = False) -> AsyncIterator[T]:
