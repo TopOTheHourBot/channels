@@ -5,7 +5,8 @@ __all__ = ["Channel"]
 import asyncio
 from asyncio import Future
 from collections import deque as Deque
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Iterator
+from contextlib import contextmanager
 from typing import Optional, Self, final
 
 from . import stream
@@ -110,3 +111,13 @@ class Channel[T]:
         """
         self._buffer.clear()
         return self
+
+    @contextmanager
+    def closure(self) -> Iterator[Self]:
+        """Return a context manager that ensures the channel's closure upon
+        exit
+        """
+        try:
+            yield self
+        finally:
+            self.close()
