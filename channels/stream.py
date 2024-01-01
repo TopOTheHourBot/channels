@@ -2,18 +2,18 @@ from __future__ import annotations
 
 __all__ = [
     "Stream",
+    "Merger",
     "compose",
-    "call_while",
     "merge",
 ]
 
 import asyncio
 import logging
 import uuid
-from asyncio import Future, Task
+from asyncio import Task
 from asyncio import TimeoutError as AsyncTimeoutError
-from collections.abc import AsyncIterator, Callable, Coroutine, Generator
-from typing import Any, Optional, Self, TypeGuard, final, overload
+from collections.abc import AsyncIterator, Callable
+from typing import Optional, Self, TypeGuard, final, overload
 
 
 def identity[T](value: T, /) -> T:
@@ -38,19 +38,6 @@ def compose[**P, T](func: Callable[P, AsyncIterator[T]]) -> Callable[P, Stream[T
     compose_wrapper.__doc__ = func.__doc__
 
     return compose_wrapper
-
-
-@compose
-async def call_while[T](
-    func: Callable[[], Coroutine[Any, Any, T]],
-    /,
-    predicate: Callable[[T], object] = lambda _: True,
-) -> AsyncIterator[T]:
-    """Compose a new ``Stream`` that makes repeated calls to ``func`` while
-    its result evaluates true according to ``predicate``
-    """
-    while predicate(result := await func()):
-        yield result
 
 
 @final
