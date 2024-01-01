@@ -1,4 +1,3 @@
-from .assembly import *
 from .channel import *
 from .diverter import *
 from .exceptions import *
