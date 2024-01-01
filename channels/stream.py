@@ -73,12 +73,11 @@ class Stream[T](AsyncIterator[T]):
         return value
 
     @compose
-    async def finite_timeout(self, delay: float, *, first: bool = False) -> AsyncIterator[T]:
+    async def finite_timeout(self, delay: float, *, first: bool = True) -> AsyncIterator[T]:
         """Return a sub-stream whose value retrievals are time restricted by
         ``delay`` seconds
 
-        If ``first`` is true, applies the timeout while awaiting the first
-        value. False by default.
+        If ``first`` is false, do not apply timeout to the first retrieval.
         """
         try:
             if not first:
@@ -88,14 +87,13 @@ class Stream[T](AsyncIterator[T]):
         except (StopAsyncIteration, AsyncTimeoutError):
             return
 
-    def timeout(self, delay: Optional[float], *, first: bool = False) -> Stream[T]:
+    def timeout(self, delay: Optional[float], *, first: bool = True) -> Stream[T]:
         """Return a sub-stream whose value retrievals are optionally time
         restricted by ``delay`` seconds
 
         If ``delay`` is ``None``, do not apply a timeout.
 
-        If ``first`` is true, applies the timeout while awaiting the first
-        value. False by default.
+        If ``first`` is false, do not apply timeout to the first retrieval.
         """
         if delay is None:  # Reduces layers of composition
             return self
