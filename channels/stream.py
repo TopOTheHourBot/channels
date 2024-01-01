@@ -185,6 +185,27 @@ class Stream[T](AsyncIterator[T]):
             if predicate(value):
                 yield value
 
+    @overload
+    def chain(self) -> Stream[T]: ...
+    @overload
+    def chain[T1](self, other1: Stream[T1], /) -> Stream[T | T1]: ...
+    @overload
+    def chain[T1, T2](self, other1: Stream[T1], other2: Stream[T2], /) -> Stream[T | T1 | T2]: ...
+    @overload
+    def chain[T1, T2, T3](self, other1: Stream[T1], other2: Stream[T2], other3: Stream[T3], /) -> Stream[T | T1 | T2 | T3]: ...
+    @overload
+    def chain[T1, T2, T3, T4](self, other1: Stream[T1], other2: Stream[T2], other3: Stream[T3], other4: Stream[T4], /) -> Stream[T | T1 | T2 | T3 | T4]: ...
+    @overload
+    def chain(self, *others: Stream) -> Stream: ...
+    @compose
+    async def chain(self, *others: Stream) -> AsyncIterator:
+        """Return a sub-stream chained with other streams"""
+        async for value in self:
+            yield value
+        for other in others:
+            async for value in other:
+                yield value
+
     def truthy(self) -> Stream[T]:
         """Return a sub-stream of the values filtered by their truthyness"""
         return self.filter(lambda value: value)
