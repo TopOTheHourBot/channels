@@ -45,6 +45,16 @@ class Channel[T]:
         return self._buffer.maxlen
 
     @property
+    def full(self) -> bool:
+        """The channel's full state"""
+        return self.size == self.max_size
+
+    @property
+    def empty(self) -> bool:
+        """The channel's empty state"""
+        return not self.size
+
+    @property
     def closed(self) -> bool:
         """The channel's closed state"""
         return self._closed
