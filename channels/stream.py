@@ -9,7 +9,6 @@ __all__ = [
 
 import asyncio
 import logging
-import uuid
 from asyncio import Task
 from asyncio import TimeoutError as AsyncTimeoutError
 from collections.abc import AsyncIterator, Callable
@@ -253,54 +252,94 @@ class Stream[T](AsyncIterator[T]):
 
 @final
 class Merger[T]:
+    """An asynchronous iterable that "merges" the results of multiple
+    ``Stream``s into one that ends when the longest of which has been exhausted
 
-    __slots__ = ("_suppress_exceptions", "_streams", "_todo")
+    ``Stream`` instances can be added before, or during iteration through the
+    ``add()`` method. See its documentation for more details.
+    """
+
+    __slots__ = ("_suppress_exceptions", "_streams")
     _suppress_exceptions: bool
-    _streams: dict[str, Stream[T]]
-    _todo: set[Task[T]]
+    _streams: list[Stream[T]]
 
     def __init__(self, *, suppress_exceptions: bool = False) -> None:
         self._suppress_exceptions = suppress_exceptions
-        self._streams = dict()
-        self._todo = set()
-
-    # TODO: Build new implementation of asyncio.wait() for this?
+        self._streams = []
 
     @compose
     async def __aiter__(self) -> AsyncIterator[T]:
-        todo = self._todo
-        while todo:
-            done, _ = await asyncio.wait(todo, return_when=asyncio.FIRST_COMPLETED)
-            # We don't use the todo set returned by wait() because it's
-            # possible that a new task was added during the call
-            todo -= done
-            for task in done:
-                name = task.get_name()
+        suppress_exceptions = self._suppress_exceptions
+        streams = self._streams  # Reference to allow mid-iteration adds
+
+        done = dict[Task[T], Stream[T]]()
+        todo = dict[Task[T], Stream[T]]()
+
+        wake = asyncio.get_running_loop().create_future()
+
+        def move_to_done(task: Task[T]) -> None:
+            nonlocal done, todo, wake
+            done[task] = todo.pop(task)
+            if not wake.done():
+                wake.set_result(None)  # Notify for non-empty done set
+
+        while True:
+
+            while streams:
+                stream = streams.pop()
+                task = asyncio.create_task(anext(stream))
+                todo[task] = stream
+                task.add_done_callback(move_to_done)
+
+            # Having no streams does not always indicate that we've exhausted
+            # our iteration, as there may still be some tasks in the todo set
+            # that need awaiting. Thus, the todo set being empty is the "true"
+            # indicator that we've finished.
+            if not todo:
+                return
+
+            await wake
+            wake = asyncio.get_running_loop().create_future()
+
+            for task, stream in done.items():
                 try:
                     result = task.result()
-                except Exception as exception:
-                    # Stream has excepted: if not StopAsyncIteration, log or
-                    # raise it depending on if we're suppressing
-                    if not isinstance(exception, StopAsyncIteration):
-                        if self._suppress_exceptions:
-                            logging.exception(exception)
-                        else:
-                            raise
-                    del self._streams[name]
+                except StopAsyncIteration:
+                    # Stream has been exhausted - nothing to do here.
                     continue
+                except Exception:
+                    # Stream went bad - log the exception and do nothing if
+                    # we're proceeding (suppressing), propagate otherwise.
+                    if suppress_exceptions:
+                        logging.exception("Stream excepted during Merger iteration")
+                        continue
+                    else:
+                        for task in todo:
+                            task.cancel()
+                        raise
+                except BaseException:
+                    # Stream is trying to kill the entire program for some
+                    # reason - let it do so.
+                    for task in todo:
+                        task.cancel()
+                    raise
                 else:
-                    # Stream has yielded: await its next value and return the
-                    # current one
-                    stream = self._streams[name]
-                    todo.add(asyncio.create_task(anext(stream), name=name))
+                    # Stream yielded normally - recycle the stream for its next
+                    # yield and push this one out.
+                    streams.append(stream)
                     yield result
 
-    def add(self, stream: Stream[T]) -> str:
-        """Add a new stream to the merger and return its assigned name"""
-        name = str(uuid.uuid4())
-        self._streams[name] = stream
-        self._todo.add(asyncio.create_task(anext(stream), name=name))
-        return name
+            done.clear()
+
+    def add(self, stream: Stream[T]) -> None:
+        """Add a stream to the merger
+
+        Additions can be made prior to, or during iteration. The first of the
+        stream's yields will not always be awaited on subsequent continues of a
+        ``Merger`` iteration, as streams that yield at the exact same moment in
+        time are synchronously yielded.
+        """
+        self._streams.append(stream)
 
 
 @overload
@@ -323,7 +362,8 @@ def merge(*streams, suppress_exceptions=False):
     streams as a singular stream
 
     The object returned by this function supports addition of streams after its
-    creation, even while iterating.
+    creation, even while iterating. See the ``Merger`` documentation for more
+    details.
     """
     merger = Merger(suppress_exceptions=suppress_exceptions)
     for stream in streams:
