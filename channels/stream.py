@@ -11,6 +11,7 @@ import asyncio
 import logging
 from asyncio import Task
 from asyncio import TimeoutError as AsyncTimeoutError
+from collections import deque as Deque
 from collections.abc import AsyncIterator, Callable
 from typing import Optional, Self, TypeGuard, final, overload
 
@@ -261,11 +262,11 @@ class Merger[T]:
 
     __slots__ = ("_suppress_exceptions", "_streams")
     _suppress_exceptions: bool
-    _streams: list[Stream[T]]
+    _streams: Deque[Stream[T]]
 
     def __init__(self, *, suppress_exceptions: bool = False) -> None:
         self._suppress_exceptions = suppress_exceptions
-        self._streams = []
+        self._streams = Deque()
 
     @compose
     async def __aiter__(self) -> AsyncIterator[T]:
@@ -274,28 +275,29 @@ class Merger[T]:
 
         done = dict[Task[T], Stream[T]]()
         todo = dict[Task[T], Stream[T]]()
-
         wake = asyncio.get_running_loop().create_future()
 
-        def move_to_done(task: Task[T]) -> None:
+        def todo_to_done(task: Task[T]) -> None:
             nonlocal done, todo, wake
             done[task] = todo.pop(task)
             if not wake.done():
                 wake.set_result(None)  # Notify for non-empty done set
 
+        results = Deque[T]()
+
         while True:
 
             while streams:
-                stream = streams.pop()
+                stream = streams.popleft()
                 task = asyncio.create_task(anext(stream))
                 todo[task] = stream
-                task.add_done_callback(move_to_done)
+                task.add_done_callback(todo_to_done)
 
-            # Having no streams does not always indicate that we've exhausted
-            # our iteration, as there may still be some tasks in the todo set
-            # that need awaiting. Thus, the todo set being empty is the "true"
-            # indicator that we've finished.
-            if not todo:
+            while results:
+                result = results.popleft()
+                yield result
+
+            if not (todo or done):
                 return
 
             await wake
@@ -305,11 +307,8 @@ class Merger[T]:
                 try:
                     result = task.result()
                 except StopAsyncIteration:
-                    # Stream has been exhausted - nothing to do here.
                     continue
                 except Exception:
-                    # Stream went bad - log the exception and do nothing if
-                    # we're proceeding (suppressing), propagate otherwise.
                     if suppress_exceptions:
                         logging.exception("Stream excepted during Merger iteration")
                         continue
@@ -318,16 +317,12 @@ class Merger[T]:
                             task.cancel()
                         raise
                 except BaseException:
-                    # Stream is trying to kill the entire program for some
-                    # reason - let it do so.
                     for task in todo:
                         task.cancel()
                     raise
                 else:
-                    # Stream yielded normally - recycle the stream for its next
-                    # yield and push this one out.
                     streams.append(stream)
-                    yield result
+                    results.append(result)
 
             done.clear()
 
