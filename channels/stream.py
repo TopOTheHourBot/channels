@@ -315,7 +315,8 @@ class Merger[T]:
             await wake
             wake = asyncio.get_running_loop().create_future()
 
-            for task, stream in done.items():
+            while done:
+                task, stream = done.popitem()
                 try:
                     result = task.result()
                 except StopAsyncIteration:
@@ -335,8 +336,6 @@ class Merger[T]:
                 else:
                     streams.append(stream)
                     results.append(result)
-
-            done.clear()
 
     def add(self, stream: Stream[T]) -> None:
         """Add a stream to the merger
