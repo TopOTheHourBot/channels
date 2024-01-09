@@ -270,20 +270,28 @@ class Merger[T]:
 
     @compose
     async def __aiter__(self) -> AsyncIterator[T]:
-        suppress_exceptions = self._suppress_exceptions
-        streams = self._streams  # Reference to allow mid-iteration adds
-
         done = dict[Task[T], Stream[T]]()
         todo = dict[Task[T], Stream[T]]()
         wake = asyncio.get_running_loop().create_future()
 
         def todo_to_done(task: Task[T]) -> None:
-            nonlocal done, todo, wake
             done[task] = todo.pop(task)
             if not wake.done():
-                wake.set_result(None)  # Notify for non-empty done set
+                wake.set_result(None)
 
+        suppress_exceptions = self._suppress_exceptions
+
+        streams = self._streams  # Reference to allow mid-iteration adds
         results = Deque[T]()
+
+        # This order of operations, while seemingly odd, is actually very
+        # purposeful.
+
+        # The anext() calls to each stream are dispatched as tasks *before*
+        # yielding so that they may be finished while the iterating code
+        # performs other, potentially asynchronous operations, hence why
+        # results are gathered and taken from a queue rather than yielded as
+        # soon as they are known.
 
         while True:
 
@@ -296,6 +304,10 @@ class Merger[T]:
             while results:
                 result = results.popleft()
                 yield result
+
+            # The done map may contain tasks while the todo map doesn't. This
+            # can occur if the iterating code awaits post-yield, allowing some
+            # or all anext() tasks to complete.
 
             if not (todo or done):
                 return
