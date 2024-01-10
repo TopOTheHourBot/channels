@@ -250,6 +250,11 @@ class Stream[T](AsyncIterator[T]):
         """
         return await anext(self, default)
 
+    async def exhaust(self) -> None:
+        """Consume the stream's remaining values"""
+        async for _ in self:
+            ...
+
 
 @final
 class Merger[T]:
