@@ -13,7 +13,7 @@ from asyncio import Task
 from asyncio import TimeoutError as AsyncTimeoutError
 from collections import deque as Deque
 from collections.abc import AsyncIterator, Callable
-from typing import Optional, Self, TypeGuard, final, overload
+from typing import Any, Optional, Self, TypeGuard, final, overload
 
 
 def identity[T](value: T, /) -> T:
@@ -150,9 +150,9 @@ class Stream[T](AsyncIterator[T]):
     @overload
     def zip[T1, T2, T3, T4](self, other1: Stream[T1], other2: Stream[T2], other3: Stream[T3], other4: Stream[T4], /) -> Stream[tuple[T, T1, T2, T3, T4]]: ...
     @overload
-    def zip(self, *others: Stream) -> Stream[tuple]: ...
+    def zip(self, *others: Stream[Any]) -> Stream[tuple[Any, ...]]: ...
     @compose
-    async def zip(self, *others: Stream) -> AsyncIterator[tuple]:
+    async def zip(self, *others: Stream[Any]) -> AsyncIterator[tuple[Any, ...]]:
         """Return a sub-stream zipped with other streams
 
         Iteration stops when the shortest stream has been exhausted.
@@ -196,9 +196,9 @@ class Stream[T](AsyncIterator[T]):
     @overload
     def chain[T1, T2, T3, T4](self, other1: Stream[T1], other2: Stream[T2], other3: Stream[T3], other4: Stream[T4], /) -> Stream[T | T1 | T2 | T3 | T4]: ...
     @overload
-    def chain(self, *others: Stream) -> Stream: ...
+    def chain(self, *others: Stream[Any]) -> Stream[Any]: ...
     @compose
-    async def chain(self, *others: Stream) -> AsyncIterator:
+    async def chain(self, *others: Stream[Any]) -> AsyncIterator[Any]:
         """Return a sub-stream chained with other streams"""
         async for value in self:
             yield value
@@ -228,7 +228,7 @@ class Stream[T](AsyncIterator[T]):
 
     async def collect(self) -> list[T]:
         """Return the values accumulated as a ``list``"""
-        result = []
+        result = list[T]()
         async for value in self:
             result.append(value)
         return result
@@ -354,7 +354,7 @@ class Merger[T]:
 
 
 @overload
-def merge(*, suppress_exceptions: bool = False) -> Merger: ...
+def merge(*, suppress_exceptions: bool = False) -> Merger[Any]: ...
 @overload
 def merge[T1](stream1: Stream[T1], /, *, suppress_exceptions: bool = False) -> Merger[T1]: ...
 @overload
@@ -366,9 +366,9 @@ def merge[T1, T2, T3, T4](stream1: Stream[T1], stream2: Stream[T2], stream3: Str
 @overload
 def merge[T1, T2, T3, T4, T5](stream1: Stream[T1], stream2: Stream[T2], stream3: Stream[T3], stream4: Stream[T4], stream5: Stream[T5], /, *, suppress_exceptions: bool = False) -> Merger[T1 | T2 | T3 | T4 | T5]: ...
 @overload
-def merge(*streams: Stream, suppress_exceptions: bool = False) -> Merger: ...
+def merge(*streams: Stream[Any], suppress_exceptions: bool = False) -> Merger[Any]: ...
 
-def merge(*streams, suppress_exceptions=False):
+def merge(*streams: Stream[Any], suppress_exceptions: bool = False) -> Merger[Any]:
     """Return an asynchronous iterable that awaits its values from the given
     streams as a singular stream
 
@@ -376,7 +376,7 @@ def merge(*streams, suppress_exceptions=False):
     creation, even while iterating. See the ``Merger`` documentation for more
     details.
     """
-    merger = Merger(suppress_exceptions=suppress_exceptions)
+    merger = Merger[Any](suppress_exceptions=suppress_exceptions)
     for stream in streams:
         merger.add(stream)
     return merger
